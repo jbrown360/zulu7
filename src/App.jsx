@@ -163,6 +163,26 @@ function App() {
           return; // Exit early
         } catch (e) {
           console.error("Failed to load Kiosk config:", e);
+
+          // Auto-cleanup: If it's an invalid key, remove it from history
+          if (e.message === "Invalid Dashboard Key") {
+            try {
+              const historyKey = STORAGE_KEYS.DASHBOARD_HISTORY;
+              const rawHistory = localStorage.getItem(historyKey);
+              if (rawHistory) {
+                const entryId = configId || dashUrl;
+                let history = JSON.parse(rawHistory);
+                const filtered = history.filter(h => h.id !== entryId);
+                if (filtered.length !== history.length) {
+                  localStorage.setItem(historyKey, JSON.stringify(filtered));
+                  console.log(`Auto-cleaned invalid dashboard from history: ${entryId}`);
+                }
+              }
+            } catch (err) {
+              console.error("Failed to cleanup invalid history:", err);
+            }
+          }
+
           // If we were trying to load a specific config ID/URL and failed, 
           // we should stop here and show an error, rather than fallback to local.
           setLoadError(e.message || "Failed to load configuration");
