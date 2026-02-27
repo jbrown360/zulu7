@@ -1,6 +1,7 @@
 {
   "name": "zulu7",
   "private": true,
+  "homepage": "https://github.com/jbrown360/zulu7",
   "version": "0.0.0",
   "type": "module",
   "repository": {
