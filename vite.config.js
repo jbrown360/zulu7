@@ -1,6 +1,5 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
 import { createProxyMiddleware, fixRequestBody } from 'http-proxy-middleware'
 import https from 'node:https'
 import http from 'node:http'
@@ -73,7 +72,6 @@ const cleanupConfigs = async () => {
 export default defineConfig({
   plugins: [
     react(),
-    tailwindcss(),
     {
       name: 'market-data-proxy',
       configureServer(server) {

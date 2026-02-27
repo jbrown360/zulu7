@@ -71,8 +71,7 @@ const cleanupConfigs = async () => {
     try {
         const files = await fs.readdir(publishedDir);
         const now = Date.now();
-        const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-        const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
         let deletedCount = 0;
 
         await Promise.all(files.map(async (file) => {
@@ -87,20 +86,10 @@ const cleanupConfigs = async () => {
                 const lastActivity = config.lastAccessed || config.timestamp || stats.mtimeMs;
                 const createdTime = config.timestamp || stats.mtimeMs;
 
-                if (!isUsed) {
-                    // Rule 1: Delete unused links after 24 hours
-                    if (now - createdTime > ONE_DAY_MS) {
-                        console.log(`Deleting unused expired config: ${file}`);
-                        await fs.unlink(filePath);
-                        deletedCount++;
-                    }
-                } else {
-                    // Rule 2: Delete used links after 1 week of inactivity
-                    if (now - lastActivity > ONE_WEEK_MS) {
-                        console.log(`Deleting stale used config: ${file}`);
-                        await fs.unlink(filePath);
-                        deletedCount++;
-                    }
+                if (now - lastActivity > THIRTY_DAYS_MS) {
+                    console.log(`Deleting expired config: ${file}`);
+                    await fs.unlink(filePath);
+                    deletedCount++;
                 }
             } catch (e) {
                 console.error(`Error processing ${file}:`, e);
