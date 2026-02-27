@@ -1,0 +1,114 @@
+ffmpeg:
+  bin: ffmpeg
+  hwaccel: auto
+
+streams:
+  Front:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_02_sub
+  Side:
+    - rtsp://camview:5935spanish@192.168.1.21:554/h264Preview_03_sub
+  Driveway:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_01_sub
+  Back:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_09_sub
+  Foyer:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_01_sub
+  Living:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_02_sub
+  Dining:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_03_sub
+  Stairs:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_06_sub
+  Laundry:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_05_sub
+  Garage:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_08_sub
+  2865dc06b3ba3b89f070a4df216a9827_Wyze:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  ddffc94585ebec23b075404a9532fbb1_Wyze:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  79c785d16f46cb439e56427079344f02_Wyze:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  be2a11735e6ce905262f60e29fbe1f64_Test:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  37874d65e6df039e6e65b465d05981fb_sdfdf:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  22617bb1ba2ff44b00dd579c31e7cb64_test:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  9e20c13958ebf53b411a1d89e2384122_test45345:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  7f8873fa28a5b5d7df0f759d0e047e27_Wyze:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  83890c46786408a5345c9227d89c1958_test566:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  8c9f3ff8aa9ab5c988eabe4362ff5277_dsfdfsf:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  37874d65e6df039e6e65b465d05981fb_dfdfdsf:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  8ca84257038670d6bb3b67a1975c29e9_test:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  96ffd9697688d488fa8820b7d3abb3b9_Wyze:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  96ffd9697688d488fa8820b7d3abb3b9_Side:
+    - rtsp://camview:5935spanish@192.168.1.21:554/h264Preview_03_sub
+  96ffd9697688d488fa8820b7d3abb3b9_BackGate:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_04_sub
+  96ffd9697688d488fa8820b7d3abb3b9_Front:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_02_sub
+  96ffd9697688d488fa8820b7d3abb3b9_Courtyard:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_09_sub
+  96ffd9697688d488fa8820b7d3abb3b9_Kitchen:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_04_sub
+  a379ebaaa797fa0a86226ade60f93e74_Foyer:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_01_sub
+  a379ebaaa797fa0a86226ade60f93e74_Stairs:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_06_sub
+  a379ebaaa797fa0a86226ade60f93e74_Dinning:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_03_sub
+  a379ebaaa797fa0a86226ade60f93e74_Kitchen:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_04_sub
+  a379ebaaa797fa0a86226ade60f93e74_Laundry:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_05_sub
+  a379ebaaa797fa0a86226ade60f93e74_Living:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_02_sub
+  a379ebaaa797fa0a86226ade60f93e74_Milo:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_07_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Foyer:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_01_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Living:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_02_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Dinning:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_03_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Stiars:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_06_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Laundry:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_05_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Driveway:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_01_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Frontdoor:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_02_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Side:
+    - rtsp://camview:5935spanish@192.168.1.21:554/h264Preview_03_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Courtyard:
+    - rtsp://camview:5935spanish@192.168.1.21:554/h264Preview_03_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Garage:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_08_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Backgate:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_04_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Kitchen:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_04_sub
+  4faa1c7c641ba657bf2602757db181f3_test:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_01_sub
+
+api:
+  origin: "*"
+  listen: ":1984"
+
+log:
+  level: info  # or debug, trace
+  format: text # or json
+
+hls:
+  segment_count: 3
+  segment_duration: 2
+  part_duration: 0.5

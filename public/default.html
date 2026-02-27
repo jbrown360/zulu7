@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Zulu7 | The Service DNA of Self-Hosting</title>
+    <meta name="description"
+        content="Explore the A-Z service DNA of Zulu7. A curated collection of the most popular open-source homelab projects, from Home Assistant to Proxmox." />
+    <meta name="keywords"
+        content="zulu7, homelab, open-source, self-hosted, alpha, bravo, charlie, automation, dashboard" />
+    <meta name="author" content="Zulu7 Labs" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://zulu7.local/default.html" />
+    <meta property="og:title" content="About Zulu7 | The Service DNA of Self-Hosting" />
+    <meta property="og:description"
+        content="Explore the A-Z service DNA of Zulu7. A curated collection of the most popular open-source homelab projects." />
+    <meta property="og:image" content="/icon.svg" />
+    <meta property="og:site_name" content="Zulu7" />
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content="https://zulu7.local/default.html" />
+    <meta property="twitter:title" content="About Zulu7 | The Service DNA of Self-Hosting" />
+    <meta property="twitter:description"
+        content="Explore the A-Z service DNA of Zulu7. A curated collection of the most popular open-source homelab projects." />
+    <meta property="twitter:image" content="/icon.svg" />
+
+    <link rel="canonical" href="https://zulu7.local/default.html" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Fira+Code:wght@400;500&display=swap');
+
+        :root {
+            --bg-color: #0c0c0e;
+            --card-bg: #141418;
+            --text-primary: #ffffff;
+            --text-secondary: #8e8e9a;
+            --accent-color: #f97316;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --subtle-bg: rgba(255, 255, 255, 0.03);
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 850px;
+            margin: 0 auto;
+            padding: 5rem 2rem;
+        }
+
+        .hero {
+            text-align: center;
+            margin-top: 4rem;
+            margin-bottom: 6rem;
+            animation: fadeIn 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .logo {
+            font-size: 4.5rem;
+            font-weight: 800;
+            color: var(--accent-color);
+            margin: 0;
+            letter-spacing: -2px;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: var(--text-secondary);
+            margin-top: 1rem;
+            font-weight: 300;
+        }
+
+        .section {
+            margin-bottom: 5rem;
+            animation: slideUp 0.8s ease-out backwards;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            color: white;
+            display: flex;
+            align-items: center;
+        }
+
+        .section-title::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: var(--border-color);
+            margin-left: 1.5rem;
+        }
+
+        .story-text {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        .highlight {
+            color: white;
+            font-weight: 600;
+        }
+
+        .naming-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.75rem;
+            margin: 2.5rem 0;
+        }
+
+        .naming-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 1.25rem 1rem;
+            text-align: center;
+            transition: all 0.2s ease;
+            border-radius: 0;
+            text-decoration: none;
+            display: block;
+            /* Squared */
+        }
+
+        .naming-card:hover {
+            background: var(--subtle-bg);
+            border-color: var(--accent-color);
+            transform: translateY(-2px);
+        }
+
+        .naming-card .code {
+            font-family: 'Fira Code', monospace;
+            font-size: 1rem;
+            color: var(--accent-color);
+            display: block;
+            margin-bottom: 0.15rem;
+        }
+
+        .naming-card span {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+            display: block;
+            line-height: 1.2;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            background: var(--subtle-bg);
+            border-radius: 0;
+            /* Squared */
+        }
+
+        .feature-card h3 {
+            color: white;
+            margin-top: 0;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .feature-card p {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .contact-section {
+            margin-top: 6rem;
+            padding: 4rem 2rem;
+            background: var(--card-bg);
+            text-align: center;
+            border: 1px solid var(--border-color);
+            border-radius: 0;
+            /* Squared */
+        }
+
+        .contact-section h2 {
+            font-size: 1.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .btn-hire {
+            display: inline-block;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            padding: 0.8rem 2.5rem;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            transition: all 0.3s ease;
+            margin-top: 1.5rem;
+            border-radius: 0;
+            /* Squared */
+        }
+
+        .btn-hire:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .social-links {
+            margin-top: 2rem;
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+        }
+
+        .social-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.2s ease;
+        }
+
+        .social-links a:hover {
+            color: white;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(40px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .btn-back {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            background: var(--bg-color);
+            padding: 0.6rem 1.25rem;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+            z-index: 1000;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-back:hover {
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+            background: var(--subtle-bg);
+            transform: translateX(-4px);
+        }
+
+        footer {
+            margin-top: 4rem;
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .btn-back {
+                position: absolute;
+                top: 1.5rem;
+                left: 1.5rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <a href="/" class="btn-back">← Back</a>
+    <div class="container">
+        <header class="hero">
+            <h1 class="logo">Zulu7</h1>
+            <p class="hero-subtitle">Host your Own <br> Open-source Customizable Landing Page / Dashboard</p>
+        </header>
+
+        <section class="section" style="animation-delay: 0.1s">
+            <div class="naming-grid">
+                <a href="https://github.com/AdguardTeam/AdGuardHome" class="naming-card" target="_blank">
+                    <span class="code">Alpha</span>
+                    <span>AdGuard (DNS & Ad-Blocking)</span>
+                </a>
+                <a href="https://github.com/borgbackup/borg" class="naming-card" target="_blank">
+                    <span class="code">Bravo</span>
+                    <span>Borg (Backup Server)</span>
+                </a>
+                <a href="https://github.com/caddyserver/caddy" class="naming-card" target="_blank">
+                    <span class="code">Charlie</span>
+                    <span>Caddy (Reverse Proxy)</span>
+                </a>
+                <a href="https://github.com/moby/moby" class="naming-card" target="_blank">
+                    <span class="code">Delta</span>
+                    <span>Docker (Container Host)</span>
+                </a>
+                <a href="https://github.com/esphome/esphome" class="naming-card" target="_blank">
+                    <span class="code">Echo</span>
+                    <span>ESPHome (IoT Sensors)</span>
+                </a>
+                <a href="https://github.com/FreshRSS/FreshRSS" class="naming-card" target="_blank">
+                    <span class="code">Foxtrot</span>
+                    <span>FreshRSS (Feed Reader)</span>
+                </a>
+                <a href="https://github.com/grafana/grafana" class="naming-card" target="_blank">
+                    <span class="code">Golf</span>
+                    <span>Grafana (Analytics)</span>
+                </a>
+                <a href="https://github.com/home-assistant/core" class="naming-card" target="_blank">
+                    <span class="code">Hotel</span>
+                    <span>Home Assistant (IoT)</span>
+                </a>
+                <a href="https://github.com/immich-app/immich" class="naming-card" target="_blank">
+                    <span class="code">India</span>
+                    <span>Immich (Photo Gallery)</span>
+                </a>
+                <a href="https://github.com/jellyfin/jellyfin" class="naming-card" target="_blank">
+                    <span class="code">Juliet</span>
+                    <span>Jellyfin (Media Center)</span>
+                </a>
+                <a href="https://github.com/k3s-io/k3s" class="naming-card" target="_blank">
+                    <span class="code">Kilo</span>
+                    <span>K3s (Kubernetes)</span>
+                </a>
+                <a href="https://github.com/Lidarr/Lidarr" class="naming-card" target="_blank">
+                    <span class="code">Lima</span>
+                    <span>Lidarr (Music Management)</span>
+                </a>
+                <a href="https://github.com/mealie-recipes/mealie" class="naming-card" target="_blank">
+                    <span class="code">Mike</span>
+                    <span>Mealie (Recipe Manager)</span>
+                </a>
+                <a href="https://github.com/nextcloud/server" class="naming-card" target="_blank">
+                    <span class="code">November</span>
+                    <span>Nextcloud (File Cloud)</span>
+                </a>
+                <a href="https://github.com/ollama/ollama" class="naming-card" target="_blank">
+                    <span class="code">Oscar</span>
+                    <span>Ollama (Local AI)</span>
+                </a>
+                <a href="https://github.com/proxmox" class="naming-card" target="_blank">
+                    <span class="code">Papa</span>
+                    <span>Proxmox (Hypervisor)</span>
+                </a>
+                <a href="https://github.com/qbittorrent/qBittorrent" class="naming-card" target="_blank">
+                    <span class="code">Quebec</span>
+                    <span>qBittorrent (Downloads)</span>
+                </a>
+                <a href="https://github.com/Radarr/Radarr" class="naming-card" target="_blank">
+                    <span class="code">Romeo</span>
+                    <span>Radarr (Movies)</span>
+                </a>
+                <a href="https://github.com/Sonarr/Sonarr" class="naming-card" target="_blank">
+                    <span class="code">Sierra</span>
+                    <span>Sonarr (TV Shows)</span>
+                </a>
+                <a href="https://github.com/truenas/middleware" class="naming-card" target="_blank">
+                    <span class="code">Tango</span>
+                    <span>TrueNAS (Storage OS)</span>
+                </a>
+                <a href="https://github.com/louislam/uptime-kuma" class="naming-card" target="_blank">
+                    <span class="code">Uniform</span>
+                    <span>Uptime Kuma (Status Board)</span>
+                </a>
+                <a href="https://github.com/dani-garcia/vaultwarden" class="naming-card" target="_blank">
+                    <span class="code">Victor</span>
+                    <span>Vaultwarden (Passwords)</span>
+                </a>
+                <a href="https://github.com/WireGuard/wireguard-tools" class="naming-card" target="_blank">
+                    <span class="code">Whiskey</span>
+                    <span>WireGuard (VPN)</span>
+                </a>
+                <a href="https://github.com/vatesfr/xen-orchestra" class="naming-card" target="_blank">
+                    <span class="code">X-Ray</span>
+                    <span>Xen Orchestra (VMs)</span>
+                </a>
+                <a href="https://github.com/yt-dlp/yt-dlp" class="naming-card" target="_blank">
+                    <span class="code">Yankee</span>
+                    <span>yt-dlp (Video Downloader)</span>
+                </a>
+                <a href="#" class="naming-card">
+                    <span class="code">Zulu</span>
+                    <span>Zulu7 (Dashboard)</span>
+                </a>
+            </div>
+        </section>
+
+        <section class="section contact-section" style="animation-delay: 0.3s">
+            <h2>Open Source & Community</h2>
+            <p class="story-text" style="max-width: 500px; margin: 0 auto;">
+                Zulu7 is an open-source project dedicated to the home lab community. Join us in building a more
+                connected world.
+            </p>
+            <a href="https://github.com/your-repo/zulu7" class="btn-hire">GitHub Repository</a>
+
+            <div class="social-links">
+                <a href="#">Documentation</a>
+                <a href="#">Community Hub</a>
+                <a href="#">Developer Blog</a>
+            </div>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 Zulu7 Labs. Built for clarity and performance.</p>
+        </footer>
+    </div>
+</body>
+
+</html>

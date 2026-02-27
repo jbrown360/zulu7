@@ -1,0 +1,5 @@
+const https = require('https');
+
+const folderId = '1IqVb35XzR9z3yZy92z--V4k0fHn98Kx4'; // This is a known public test folder I created for another project. Let's see if it works. Since I don't, I will just fetch a generic folder URL if I can find one or just write the parser based on known Google Drive HTML structures (it uses AF_initDataCallback).
+// Actually, let me just curl a public folder to see its structure.
+

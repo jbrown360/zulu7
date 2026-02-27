@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  zulu7:
+    build: .
+    container_name: zulu7-dashboard
+    restart: unless-stopped
+    network_mode: host # Uses host network to easily access Streamer on localhost
+    environment:
+      - STREAMER_URL=http://127.0.0.1:1984
+    depends_on:
+      - streamer
+    volumes:
+      - ./published_configs:/app/published_configs
+
+  streamer:
+    image: alexxit/go2rtc
+    container_name: zulu7-streamer
+    restart: unless-stopped
+    network_mode: host # Recommended for RTSP/WebRTC to avoid NAT issues
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml
