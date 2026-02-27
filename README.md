@@ -32,7 +32,7 @@
 ## Architecture
 
 Zulu7 is built with a modern, high-performance stack:
-- **Frontend**: React 19 + Vite + Tailwind CSS 4.
+- **Frontend**: React 19 + Vite + Tailwind CSS 3.
 - **Icons**: Lucide React.
 - **Grid System**: Custom implementation on top of `react-grid-layout`.
 - **Backend API**: Express 5 for proxying and system metrics.
