@@ -65,7 +65,11 @@ COMMIT_MSG=${COMMIT_MSG:-"update"}
 
 # Commit
 echo "Committing changes..."
-git commit -m "$COMMIT_MSG"
+git commit -m "$COMMIT_MSG" || echo "Nothing to commit"
+
+# Sync with Remote (Handle "fetch first" errors)
+echo "Syncing with remote branch $BRANCH..."
+git pull --rebase origin $BRANCH
 
 # Push with Error Handling
 echo "Pushing to $BRANCH..."
