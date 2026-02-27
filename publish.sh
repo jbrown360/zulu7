@@ -19,6 +19,19 @@ if [ ! -d ".git" ]; then
     git branch -M $BRANCH
 fi
 
+# Ensure git is authenticated via gh CLI
+if command -v gh &> /dev/null; then
+    echo "Configuring GitHub CLI credential helper..."
+    gh auth setup-git
+    
+    # Check if repo exists, create if not
+    if ! gh repo view >/dev/null 2>&1; then
+        echo "Repository not found on GitHub. Creating it now..."
+        gh repo create zulu7 --public --source=. --remote=origin --push
+        exit 0
+    fi
+fi
+
 # Check for .gitignore
 if [ ! -f ".gitignore" ]; then
     echo "Warning: .gitignore not found. Creating a default one..."
