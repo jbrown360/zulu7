@@ -67,8 +67,28 @@ COMMIT_MSG=${COMMIT_MSG:-"update"}
 echo "Committing changes..."
 git commit -m "$COMMIT_MSG"
 
-# Push
+# Push with Error Handling
 echo "Pushing to $BRANCH..."
-git push -u origin $BRANCH
-
-echo "Done! Dashboard published to $REPO_URL"
+if git push -u origin $BRANCH; then
+    echo "------------------------------------------------"
+    echo "✅ SUCCESS! Dashboard published to $REPO_URL"
+    echo "------------------------------------------------"
+else
+    EXIT_CODE=$?
+    if [ $EXIT_CODE -eq 128 ]; then
+        echo "------------------------------------------------"
+        echo "❌ ERROR: Permission Denied (403)"
+        echo "------------------------------------------------"
+        echo "Your GitHub token does not have the 'repo' scope."
+        echo "To fix this, run this command and follow the prompts:"
+        echo ""
+        echo "  gh auth login --force --web"
+        echo ""
+        echo "Select 'GitHub.com', 'HTTPS', and 'Login with a web browser'."
+        echo "Ensure you allow 'repository' access when prompted."
+        echo "------------------------------------------------"
+    else
+        echo "Push failed with exit code $EXIT_CODE"
+    fi
+    exit $EXIT_CODE
+fi
