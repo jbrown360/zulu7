@@ -82,10 +82,10 @@ else
         echo "Your GitHub token does not have the 'repo' scope."
         echo "To fix this, run this command and follow the prompts:"
         echo ""
-        echo "  gh auth login --force --web"
+        echo "  gh auth login -w -s repo"
         echo ""
         echo "Select 'GitHub.com', 'HTTPS', and 'Login with a web browser'."
-        echo "Ensure you allow 'repository' access when prompted."
+        echo "Ensure you allow 'repository' access in the browser."
         echo "------------------------------------------------"
     else
         echo "Push failed with exit code $EXIT_CODE"
