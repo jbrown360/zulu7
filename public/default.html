@@ -87,30 +87,53 @@
         }
 
         .section-title {
-            font-size: 1.5rem;
-            font-weight: 700;
+            font-size: 1.75rem;
+            font-weight: 800;
             margin-bottom: 2rem;
-            color: white;
-            display: flex;
-            align-items: center;
-        }
-
-        .section-title::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: var(--border-color);
-            margin-left: 1.5rem;
+            color: var(--text-secondary);
+            text-align: center;
+            display: block;
+            width: 100%;
+            letter-spacing: -0.5px;
         }
 
         .story-text {
             font-size: 1.05rem;
             color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+
+        .boxed-section {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 4rem 2rem;
+            margin-bottom: 3rem;
+            text-align: center;
+            animation: slideUp 0.8s ease-out backwards;
+        }
+
+        .journey-block {
+            text-align: left;
+            padding: 4rem 3rem;
+        }
+
+        .journey-block .section-title,
+        .journey-block .story-text {
+            text-align: left;
+            margin-left: 0;
+            margin-right: 0;
+        }
+
+        .journey-paragraph {
             margin-bottom: 1.5rem;
         }
 
         .highlight {
-            color: white;
+            color: var(--accent-color);
             font-weight: 600;
         }
 
@@ -184,42 +207,45 @@
         }
 
         .contact-section {
-            margin-top: 6rem;
-            padding: 4rem 2rem;
-            background: var(--card-bg);
-            text-align: center;
-            border: 1px solid var(--border-color);
-            border-radius: 0;
-            /* Squared */
+            margin-top: 3rem;
+            /* Inherits from boxed-section styles applied in HTML */
         }
 
         .contact-section h2 {
             font-size: 1.75rem;
             font-weight: 800;
             margin-bottom: 1rem;
-            color: var(--accent-color) !important;
+            color: var(--text-secondary);
             letter-spacing: -0.5px;
+            text-align: center;
         }
 
         .btn-hire {
             display: inline-block;
             border: 1px solid var(--accent-color);
             color: var(--accent-color);
-            padding: 0.8rem 2.5rem;
+            padding: 0.8rem 2.2rem;
             text-decoration: none;
             font-weight: 600;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             text-transform: uppercase;
-            letter-spacing: 1.5px;
+            letter-spacing: 1.2px;
             transition: all 0.3s ease;
-            margin-top: 1.5rem;
             border-radius: 0;
-            /* Squared */
+            white-space: nowrap;
         }
 
         .btn-hire:hover {
             background: var(--accent-color);
             color: white;
+        }
+
+        .cta-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
         }
 
         .social-links {
@@ -317,7 +343,29 @@
             <p class="hero-subtitle">Host your Own <br> Open-source Customizable Landing Page / Dashboard</p>
         </header>
 
-        <section class="section" style="animation-delay: 0.1s">
+        <section class="boxed-section journey-block" style="animation-delay: 0.1s">
+            <h2 class="section-title">The Homelab Journey</h2>
+            <div class="story-text">
+                <p class="journey-paragraph">
+                    It started with a Tandy TRS-80, a BASIC manual, and a question that never really went away: *What
+                    else can this thing do?* That curiosity turned into a career and years of experience self-hosting,
+                    breaking things just to build them back better.
+                </p>
+                <p class="journey-paragraph">
+                    I actually began by naming my servers after characters from <span class="highlight">The
+                        Simpsons</span>, but the lab eventually outgrew the cast. I needed a system that could scale, so
+                    I turned to the <span class="highlight">Zulu phonetic alphabet</span>. From Alpha managing DNS to
+                    Hotel running the house, every letter is a pillar of the lab.
+                </p>
+                <p class="journey-paragraph">
+                    <span class="highlight">Zulu7</span> is the dashboard for all of it. After the building and
+                    rebuilding, this is the screen where it all lands.
+                </p>
+            </div>
+        </section>
+
+        <section class="boxed-section journey-block" style="animation-delay: 0.2s">
+            <h2 class="section-title">Zulu Home Lab</h2>
             <div class="naming-grid">
                 <a href="https://github.com/AdguardTeam/AdGuardHome" class="naming-card" target="_blank">
                     <span class="code">Alpha</span>
@@ -426,13 +474,17 @@
             </div>
         </section>
 
-        <section class="section contact-section" style="animation-delay: 0.3s">
-            <h2 style="color: var(--accent-color) !important;">Open Source & Community</h2>
-            <p class="story-text" style="max-width: 500px; margin: 0 auto;">
+        <section class="boxed-section contact-section" style="animation-delay: 0.3s">
+            <h2>Open Source & Community</h2>
+            <p class="story-text" style="max-width: 500px;">
                 Zulu7 is an open-source project dedicated to the home lab community. Join us in building a more
                 connected world.
             </p>
-            <a href="https://github.com/jbrown360/zulu7" class="btn-hire">GitHub Repository</a>
+
+            <div class="cta-buttons">
+                <a href="https://github.com/jbrown360/zulu7" class="btn-hire" target="_blank">GitHub Repository</a>
+                <a href="https://buymeacoffee.com/jbrown360" class="btn-hire" target="_blank">Buy me a coffee</a>
+            </div>
 
             <div class="social-links">
                 <a href="#">Documentation</a>
@@ -442,7 +494,7 @@
         </section>
 
         <footer>
-            <p>&copy; 2026 Zulu7 Labs. Built for clarity and performance.</p>
+            <p>&copy; 2026 zulu7</p>
         </footer>
     </div>
 </body>

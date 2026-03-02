@@ -421,3 +421,17 @@ body {
 .animate-pulse-slow {
   animation: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+@keyframes branding-pulse {
+  0%, 100% { 
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px rgba(249, 115, 22, 0.4)) brightness(1);
+  }
+  50% { 
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.7)) brightness(1.3);
+  }
+}
+
+.animate-branding-pulse {
+  animation: branding-pulse 2s ease-in-out infinite;
+}
