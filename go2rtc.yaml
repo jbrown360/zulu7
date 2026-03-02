@@ -89,8 +89,6 @@ streams:
     - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_02_sub
   c49983d66bcd78ed672f61f63eb8c5db_Side:
     - rtsp://camview:5935spanish@192.168.1.21:554/h264Preview_03_sub
-  c49983d66bcd78ed672f61f63eb8c5db_Courtyard:
-    - rtsp://camview:5935spanish@192.168.1.21:554/h264Preview_03_sub
   c49983d66bcd78ed672f61f63eb8c5db_Garage:
     - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_08_sub
   c49983d66bcd78ed672f61f63eb8c5db_Backgate:
@@ -99,6 +97,16 @@ streams:
     - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_04_sub
   4faa1c7c641ba657bf2602757db181f3_test:
     - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_01_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Wyze:
+    - rtsp://wyze:camerax@192.168.1.28:554/live
+  c49983d66bcd78ed672f61f63eb8c5db_Milo:
+    - rtsp://camview:5935spanish@192.168.1.20:554//h264Preview_07_sub
+  c49983d66bcd78ed672f61f63eb8c5db_ACWindow:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_06_sub
+  c49983d66bcd78ed672f61f63eb8c5db_SalCorner:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_10_sub
+  c49983d66bcd78ed672f61f63eb8c5db_Courtyard:
+    - rtsp://camview:5935spanish@192.168.1.21:554//h264Preview_09_sub
 
 api:
   origin: "*"

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark">
+    <title>RSS Marquee</title>
+    <style>
+        :root {
+            --text-color: #888888;
+            --accent-color: #666666;
+            --font-size: 26px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background-color: transparent !important;
+            background: transparent !important;
+            color: var(--text-color);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .marquee-container {
+            width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+            mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+            cursor: ns-resize;
+            margin: 2px 0;
+        }
+
+        .marquee-content {
+            display: inline-block;
+            will-change: transform;
+        }
+
+        #container2 {
+            color: #666666;
+            /* Greyer contrast for the second row */
+        }
+
+        .news-item {
+            display: inline-block;
+            padding: 0 40px;
+            font-size: var(--font-size);
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            text-transform: uppercase;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .news-item:hover {
+            color: #bbb;
+            transform: scale(1.05);
+        }
+
+        .news-item:hover .bullet {
+            color: #bbb;
+            opacity: 1;
+        }
+
+        .news-item .bullet {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            color: #ffffff;
+        }
+
+        .news-item .bullet svg {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="marquee-container" id="container1">
+        <div id="marquee1" class="marquee-content">
+            <div class="news-item">Loading Row 1...</div>
+        </div>
+    </div>
+    <div class="marquee-container" id="container2" style="margin-top: 5px;">
+        <div id="marquee2" class="marquee-content">
+            <div class="news-item">Loading Row 2...</div>
+        </div>
+    </div>
+
+    <script>
+        const RSS_FEED_URLS = [
+            'https://moxie.foxnews.com/google-publisher/latest.xml',
+            'https://moxie.foxnews.com/google-publisher/world.xml',
+            'https://moxie.foxnews.com/google-publisher/politics.xml',
+            'https://moxie.foxnews.com/google-publisher/science.xml',
+            'https://moxie.foxnews.com/google-publisher/health.xml',
+            'https://moxie.foxnews.com/google-publisher/sports.xml',
+            'https://moxie.foxnews.com/google-publisher/travel.xml',
+            'https://moxie.foxnews.com/google-publisher/tech.xml',
+            'https://moxie.foxnews.com/google-publisher/opinion.xml',
+            'https://moxie.foxnews.com/google-publisher/videos.xml',
+            'https://feeds.bbci.co.uk/news/rss.xml'
+        ];
+        const REFRESH_INTERVAL = 15 * 60 * 1000;
+
+        let scrollPos1 = 0;
+        let scrollPos2 = 0;
+        let isHovered = false;
+        let isVisible = true;
+        let contentWidth = 0;
+
+        const speed1 = 0.75;
+        const speed2 = 0.75;
+
+        const marquee1 = document.getElementById('marquee1');
+        const marquee2 = document.getElementById('marquee2');
+        const container1 = document.getElementById('container1');
+        const container2 = document.getElementById('container2');
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        async function fetchRSS() {
+            // Only fetch if tab is active (or if first fetch)
+            if (document.visibilityState !== 'visible' && headlinesLoaded) return;
+
+            try {
+                const shuffledUrls = shuffleArray([...RSS_FEED_URLS]);
+                const halfUrls = Math.ceil(shuffledUrls.length / 2);
+                const urls1 = shuffledUrls.slice(0, halfUrls);
+                const urls2 = shuffledUrls.slice(halfUrls);
+
+                const fetchGroup = async (urls) => {
+                    const fetchPromises = urls.map(async (url) => {
+                        const response = await fetch(`/api/rss?url=${encodeURIComponent(url)}`);
+                        if (!response.ok) throw new Error(`Fetch failed for ${url}`);
+                        const text = await response.text();
+                        const parser = new DOMParser();
+                        const xml = parser.parseFromString(text, "text/xml");
+                        const feedTitle = xml.querySelector("channel > title, feed > title")?.textContent || "Source";
+                        return Array.from(xml.querySelectorAll("item, entry")).map(el => ({
+                            title: el.querySelector("title").textContent,
+                            link: el.querySelector("link")?.textContent || el.querySelector("link")?.getAttribute("href") || "#",
+                            source: feedTitle
+                        }));
+                    });
+                    const results = await Promise.allSettled(fetchPromises);
+                    let headlines = [];
+                    results.forEach(result => {
+                        if (result.status === 'fulfilled') {
+                            headlines = [...headlines, ...result.value];
+                        }
+                    });
+                    return shuffleArray(headlines);
+                };
+
+                const [pool1, pool2] = await Promise.all([
+                    fetchGroup(urls1),
+                    fetchGroup(urls2)
+                ]);
+
+                if (pool1.length > 0) renderMarquee(marquee1, pool1);
+                if (pool2.length > 0) renderMarquee(marquee2, pool2);
+
+                scrollPos2 = 700;
+                headlinesLoaded = true;
+            } catch (error) {
+                console.error('RSS Marquee Error:', error);
+            }
+        }
+
+        let headlinesLoaded = false;
+
+        function renderMarquee(element, headlines) {
+            const icon = `
+                <span class="bullet">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 11a9 9 0 0 1 9 9"></path>
+                        <path d="M4 4a16 16 0 0 1 16 16"></path>
+                        <circle cx="5" cy="19" r="1"></circle>
+                    </svg>
+                </span>
+            `;
+
+            const content = headlines.map(h => `
+                <a href="${h.link}" target="_blank" class="news-item" title="Source: ${h.source}">
+                    ${icon}${h.title}
+                </a>
+            `).join('');
+
+            element.innerHTML = content + content;
+            setTimeout(() => {
+                contentWidth = element.offsetWidth / 2;
+            }, 100);
+        }
+
+        function animate() {
+            // EXTREME HIBERNATION: 
+            // 1. Check IntersectionObserver (isVisible)
+            // 2. Check document visibilityState (tab focus)
+            // 3. Check for hover pause
+            if (!isHovered && isVisible && document.visibilityState === 'visible' && contentWidth > 0) {
+                // Row 1
+                scrollPos1 += speed1;
+                if (scrollPos1 >= contentWidth) scrollPos1 = 0;
+
+                // Row 2
+                scrollPos2 += speed2;
+                if (scrollPos2 >= contentWidth) scrollPos2 = 0;
+
+                marquee1.style.transform = `translateX(${-scrollPos1}px)`;
+                marquee2.style.transform = `translateX(${-scrollPos2}px)`;
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        const pauseOn = () => isHovered = true;
+        const pauseOff = () => isHovered = false;
+
+        [container1, container2].forEach(c => {
+            c.addEventListener('mouseenter', pauseOn);
+            c.addEventListener('mouseleave', pauseOff);
+
+            c.addEventListener('wheel', (e) => {
+                if (contentWidth === 0) return;
+                e.preventDefault();
+                scrollPos1 += e.deltaY;
+                scrollPos2 += e.deltaY;
+
+                [scrollPos1, scrollPos2].forEach((pos, idx) => {
+                    let p = pos;
+                    if (p < 0) p = contentWidth + (p % contentWidth);
+                    else if (p >= contentWidth) p = p % contentWidth;
+                    if (idx === 0) scrollPos1 = p; else scrollPos2 = p;
+                });
+
+                marquee1.style.transform = `translateX(${-scrollPos1}px)`;
+                marquee2.style.transform = `translateX(${-scrollPos2}px)`;
+            }, { passive: false });
+        });
+
+        // Use Page Visibility API for global hibernation
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                // Refresh if we were hidden for a long time
+                // fetchRSS(); 
+            }
+        });
+
+        const observer = new IntersectionObserver(([entry]) => {
+            isVisible = entry.isIntersecting;
+        }, { threshold: 0.1 });
+        observer.observe(container1);
+
+        fetchRSS();
+        setInterval(fetchRSS, REFRESH_INTERVAL);
+        requestAnimationFrame(animate);
+    </script>
+</body>
+
+</html>

@@ -30,7 +30,17 @@ function App() {
   const [loadError, setLoadError] = useState(null);
   const [isEphemeralMode, setIsEphemeralMode] = useState(false);
   const [ephemeralWorkspaces, setEphemeralWorkspaces] = useState(null);
-  const [currentActiveWorkspace, setCurrentActiveWorkspace] = useState(0);
+  const [currentActiveWorkspace, setCurrentActiveWorkspace] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const workspaceParam = params.get('w');
+    const parsed = parseInt(workspaceParam, 10);
+    if (!isNaN(parsed)) return Math.max(0, parsed - 1); // Convert 1-based to 0-based
+
+    // Use persistence if URL param is missing
+    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_WORKSPACE);
+    const savedParsed = parseInt(saved, 10);
+    return !isNaN(savedParsed) ? savedParsed : 0;
+  });
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -39,7 +49,7 @@ function App() {
       const dashUrl = params.get('dash');
       const configId = params.get('zulu7');
       const workspaceParam = params.get('w');
-      let targetWorkspace = workspaceParam ? parseInt(workspaceParam, 10) : 0;
+      let targetWorkspace = workspaceParam ? Math.max(0, parseInt(workspaceParam, 10) - 1) : NaN;
 
       if (dashUrl || configId) {
         try {
@@ -272,6 +282,12 @@ function App() {
           localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(defaults));
         }
       }
+
+      // Final check: In Normal Mode, if we have a URL param, ensure it's reflected in state
+      if (!isEphemeralMode && !isNaN(targetWorkspace)) {
+        setCurrentActiveWorkspace(targetWorkspace);
+      }
+
       setConfigLoaded(true);
     };
     loadSettings();
@@ -291,7 +307,10 @@ function App() {
     if (!settings.isSlideshowEnabled || settings.bgImages.length <= 1) return;
 
     const interval = setInterval(() => {
-      setCurrentBgIndex((prev) => (prev + 1) % settings.bgImages.length);
+      // NEW: Skip background change if tab is inactive
+      if (document.visibilityState === 'visible') {
+        setCurrentBgIndex((prev) => (prev + 1) % settings.bgImages.length);
+      }
     }, settings.slideshowInterval * 1000);
 
     return () => clearInterval(interval);
@@ -377,7 +396,7 @@ function App() {
             onUpdateSettings={handleSaveSettings}
             disablePersistence={isEphemeralMode}
             initialWorkspaces={ephemeralWorkspaces}
-            initialActiveWorkspace={isEphemeralMode ? (settings.activeWorkspace || 0) : undefined}
+            initialActiveWorkspace={currentActiveWorkspace}
             isRestricted={settings.isRestricted}
           />
         ) : loadError ? (

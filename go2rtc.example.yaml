@@ -1,0 +1,23 @@
+ffmpeg:
+  bin: ffmpeg
+  hwaccel: auto
+
+streams:
+  # Examples of RTSP streams with dummy credentials
+  Front:
+    - rtsp://user:password@192.168.1.10:554/live
+  Back:
+    - rtsp://user:password@192.168.1.11:554/live
+
+api:
+  origin: "*"
+  listen: ":1984"
+
+log:
+  level: info
+  format: text
+
+hls:
+  segment_count: 3
+  segment_duration: 2
+  part_duration: 0.5

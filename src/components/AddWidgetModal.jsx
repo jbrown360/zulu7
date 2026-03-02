@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Monitor, Video, TrendingUp, Save, Trash2, Rss, CloudSun, ExternalLink, Lock, LayoutGrid, Link, Tag, Layout, PlusCircle, Globe, ShieldAlert, Zap, Image, Activity, RefreshCw } from 'lucide-react';
+import { X, Plus, Monitor, Video, TrendingUp, Save, Trash2, Rss, CloudSun, Globe, Lock, LayoutGrid, Link, Tag, Layout, PlusCircle, Plug, ShieldAlert, Zap, Image, Activity, RefreshCw, AppWindow, ExternalLink } from 'lucide-react';
 
-const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, streamerUrl = 'http://localhost:1984', streamApiKey = '', onOpenSettings, onMove, settings, totalWorkspaces, activeWorkspace }) => {
+const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, streamerUrl = 'http://localhost:1984', streamApiKey = '', onOpenSettings, settings }) => {
     const [type, setType] = useState('iframe');
+    const backdropMouseDownRef = useRef(false);
     const [value, setValue] = useState('');
     const [extraValue, setExtraValue] = useState('fahrenheit'); // Used for Weather Unit or other extras
     const [streams, setStreams] = useState({});
     const [apiKey, setApiKey] = useState(streamApiKey);
 
-    const [targetWorkspace, setTargetWorkspace] = useState(activeWorkspace || 0);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [integrations, setIntegrations] = useState([]);
     const isMounted = useRef(false);
 
     useEffect(() => {
@@ -31,10 +32,6 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             let initialType = 'iframe';
             let initialValue = '';
             let initialExtraValue = '';
-            let initialWorkspace = activeWorkspace || 0;
-
-            setTargetWorkspace(initialWorkspace);
-
             if (editWidget) {
                 initialType = editWidget.type;
                 setType(initialType);
@@ -47,9 +44,9 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                     const [url, interval] = editWidget.value.split('|');
                     initialValue = url;
                     initialExtraValue = interval || '180';
-                } else if (editWidget.type === 'icon' || editWidget.type === 'iframe' || editWidget.type === 'rss' || editWidget.type === 'camera' || editWidget.type === 'proxy' || editWidget.type === 'web') {
+                } else if (editWidget.type === 'icon' || editWidget.type === 'iframe' || editWidget.type === 'rss' || editWidget.type === 'camera' || editWidget.type === 'proxy' || editWidget.type === 'web' || editWidget.type === 'integration') {
                     const [url, name, icon] = editWidget.value.split('|');
-                    initialValue = url;
+                    initialValue = editWidget.type === 'integration' ? url.replace('/integrations/', '') : url;
                     initialExtraValue = `${name || ''}|${icon || ''}`;
                 } else if (editWidget.type === 'service') {
                     const [name, stype, url, port, interval, isDisabled] = editWidget.value.split('|');
@@ -71,11 +68,10 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                 type: initialType,
                 value: initialValue,
                 extraValue: initialExtraValue,
-                targetWorkspace: initialWorkspace,
                 apiKey: streamApiKey // API Key also tracked
             };
         }
-    }, [isOpen, editWidget, activeWorkspace, streamApiKey]);
+    }, [isOpen, editWidget, streamApiKey]);
 
     // 2. Fetch Streams (Runs when modal is open and key/url changes)
     useEffect(() => {
@@ -87,6 +83,15 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                 .then(res => res.json())
                 .then(data => setStreams(data || {}))
                 .catch(err => console.error("Failed to fetch streams for widget modal", err));
+
+            // Fetch Integrations
+            fetch('/api/integrations')
+                .then(res => res.json())
+                .then(data => {
+                    const sorted = (data || []).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+                    setIntegrations(sorted);
+                })
+                .catch(err => console.error("Failed to fetch integrations", err));
         }
     }, [isOpen, streamerUrl, apiKey]);
 
@@ -101,8 +106,16 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    const handleBackdropClick = (e) => {
+    const handleBackdropMouseDown = (e) => {
         if (e.target === e.currentTarget) {
+            backdropMouseDownRef.current = true;
+        } else {
+            backdropMouseDownRef.current = false;
+        }
+    };
+
+    const handleBackdropClick = (e) => {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current) {
             // Check for changes
             if (!initialStateRef.current) {
                 onClose();
@@ -113,13 +126,13 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                 type !== initialStateRef.current.type ||
                 value !== initialStateRef.current.value ||
                 extraValue !== initialStateRef.current.extraValue ||
-                targetWorkspace !== initialStateRef.current.targetWorkspace ||
                 apiKey !== initialStateRef.current.apiKey;
 
             if (!hasChanges) {
                 onClose();
             }
         }
+        backdropMouseDownRef.current = false;
     };
 
     const handleStreamSelect = (streamName) => {
@@ -148,7 +161,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
             const match = value.match(ytRegex);
             if (match && match[1]) {
-                urlToSave = `https://www.youtube.com/embed/${match[1]}?autoplay=1&mute=1`;
+                urlToSave = `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1&mute=1`;
             }
         }
 
@@ -166,9 +179,14 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             finalValue = `${urlToSave}|${extraValue || '180'}`;
         } else if (type === 'weather') {
             finalValue = `${urlToSave}|${extraValue || 'fahrenheit'}`;
-        } else if (type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy' || type === 'web') {
+        } else if (type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy' || type === 'web' || type === 'integration') {
             // extraValue acts as "Name|Icon" or just "Name"
             let [name, icon] = extraValue.split('|');
+
+            // Handle Integration URL
+            if (type === 'integration') {
+                urlToSave = `/integrations/${value}`;
+            }
 
             // Logic to determine if we should auto-fetch the title
             const isEditingUrl = editWidget && initialStateRef.current && value !== initialStateRef.current.value;
@@ -219,7 +237,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
         }
 
         if (isMounted.current) {
-            onSave(type, finalValue, editWidget ? editWidget.id : null, targetWorkspace);
+            onSave(type, finalValue, editWidget ? editWidget.id : null);
             setIsSubmitting(false);
             onClose();
         }
@@ -231,6 +249,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
 
     return (
         <div
+            onMouseDown={handleBackdropMouseDown}
             onClick={handleBackdropClick}
             className="fixed inset-0 z-[200] flex items-start justify-center p-4 pt-16 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200"
         >
@@ -253,14 +272,15 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                         </label>
                         <div className="grid grid-cols-3 gap-2">
                             {[
-                                { id: 'iframe', label: 'iFrame', icon: Monitor },
+                                { id: 'iframe', label: 'iFrame', icon: Globe },
                                 { id: 'rss', label: 'RSS', icon: Rss },
-                                { id: 'icon', label: 'Link', icon: ExternalLink },
+                                { id: 'icon', label: 'Link', icon: Link },
                                 { id: 'ticker', label: 'Ticker', icon: TrendingUp },
                                 { id: 'weather', label: 'Weather', icon: CloudSun },
                                 { id: 'media', label: 'Slide Show', icon: Image },
                                 { id: 'camera', label: 'Camera', icon: Video },
                                 { id: 'service', label: 'Health Check', icon: Activity },
+                                { id: 'integration', label: 'Integration', icon: Plug },
                             ].map((item) => (
                                 <button
                                     key={item.id}
@@ -291,21 +311,55 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                         <label className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center">
                             <Link size={12} className="mr-1.5" />
                             {type === 'ticker' ? 'Symbol (e.g., AAPL)' :
-                                type === 'rss' ? 'RSS Feed URL' :
+                                type === 'rss' ? 'RSS Feed URLs (One per line)' :
                                     type === 'weather' ? 'City or Zip Code' :
                                         type === 'icon' ? 'Target URL' :
                                             type === 'media' ? 'Slide Show Folder (Google Drive or HTTP/HTTPS)' :
                                                 type === 'service' ? 'Health Check URL / Hostname' :
-                                                    (type === 'proxy') ? 'Target Website URL' : 'Source URL'}
+                                                    type === 'integration' ? 'Selected Integration' :
+                                                        (type === 'proxy') ? 'Target Website URL' : 'Source URL'}
                         </label>
-                        <input
-                            type="text"
-                            value={value}
-                            onChange={(e) => setValue(e.target.value)}
-                            placeholder={type === 'ticker' ? 'AAPL' : type === 'rss' ? 'https://feeds.bbci.co.uk/news/rss.xml' : type === 'weather' ? 'New York, London, 90210...' : type === 'media' ? 'https://drive.google.com/..., https://.../' : type === 'service' ? 'www.google.com' : (type === 'proxy') ? 'https://www.google.com' : 'https://...'}
-                            className={`w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 ${type === 'rss' ? 'focus:border-orange-500/50' : type === 'weather' ? 'focus:border-cyan-500/50' : (type === 'proxy') ? 'focus:border-orange-500/50' : 'focus:border-blue-500/50'}`}
-                            autoFocus
-                        />
+
+                        {/* Integration Dropdown */}
+                        {type === 'integration' ? (
+                            <select
+                                value={value}
+                                onChange={(e) => {
+                                    setValue(e.target.value);
+                                    if (!extraValue.split('|')[0]) {
+                                        setExtraValue(`${e.target.value.replace('.html', '').charAt(0).toUpperCase() + e.target.value.replace('.html', '').slice(1)}|`);
+                                    }
+                                }}
+                                className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-orange-500/50 appearance-none cursor-pointer"
+                            >
+                                <option value="" disabled className="bg-[#1a1a20]">Choose an Integration...</option>
+                                {integrations.map(file => (
+                                    <option key={file} value={file} className="bg-[#1a1a20]">{file.replace('.html', '')}</option>
+                                ))}
+                            </select>
+                        ) : (type === 'rss' || type === 'media') ? (
+                            <textarea
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                placeholder={type === 'rss' ? 'https://feeds.bbci.co.uk/news/rss.xml\nhttps://...' : 'https://image-url-1.jpg\nhttps://image-url-2.jpg'}
+                                className={`w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 min-h-[100px] resize-none ${type === 'rss' ? 'focus:border-orange-500/50' : 'focus:border-blue-500/50'}`}
+                                autoFocus
+                            />
+                        ) : (
+                            <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => setValue(e.target.value)}
+                                placeholder={type === 'ticker' ? 'AAPL' : type === 'weather' ? 'New York, London, 90210...' : type === 'service' ? 'www.google.com' : (type === 'proxy') ? 'https://www.google.com' : 'https://...'}
+                                className={`w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 ${type === 'rss' ? 'focus:border-orange-500/50' : type === 'weather' ? 'focus:border-cyan-500/50' : (type === 'proxy') ? 'focus:border-orange-500/50' : 'focus:border-blue-500/50'}`}
+                                autoFocus
+                            />
+                        )}
+                        {type === 'integration' && integrations.length === 0 && (
+                            <p className="text-[10px] text-orange-400 italic mt-1">
+                                No integrations found in /integrations folder. Add .html files there.
+                            </p>
+                        )}
 
                         {/* Service Fields */}
                         {type === 'service' && (
@@ -422,7 +476,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                         )}
 
                         {/* Icon/Iframe/RSS/Camera/RBI Widget Extra Fields */}
-                        {(type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy') && (
+                        {(type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy' || type === 'integration') && (
                             <div className="space-y-2 mt-2 pt-2 border-t border-white/5 animate-in slide-in-from-top-2">
                                 <div>
                                     <label className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center">
@@ -580,31 +634,6 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                         )
                     }
 
-
-                    {
-                        editWidget && (
-                            <div className="space-y-2 mt-2 pt-2 border-t border-white/5">
-                                <label className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center mb-1">
-                                    <Layout size={12} className="mr-1.5" />
-                                    Move to Dashboard
-                                </label>
-                                <div className="flex space-x-2">
-                                    <select
-                                        value={targetWorkspace}
-                                        onChange={e => setTargetWorkspace(Number(e.target.value))}
-                                        className="flex-1 bg-black/30 border border-white/10 rounded-none px-3 py-2 text-white focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
-                                    >
-                                        {Array.from({ length: totalWorkspaces || 7 }).map((_, i) => (
-                                            <option key={i} value={i} disabled={i === activeWorkspace}>
-                                                {settings?.dashboardNames?.[i] || `Dashboard ${i + 1}`}
-                                                {i === activeWorkspace ? ' (Current)' : ''}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )
-                    }
 
                     <div className="pt-2 flex space-x-3">
                         {editWidget && (

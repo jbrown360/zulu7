@@ -20,6 +20,7 @@ const WidgetRenderer = ({ widget, isLocked, finnhubKey }) => {
         case 'iframe':
         case 'proxy':
         case 'web':
+        case 'integration':
             return <VideoWidget data={widget} isLocked={isLocked} />;
         case 'rss':
             return <RSSWidget data={widget} isLocked={isLocked} />;

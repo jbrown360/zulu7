@@ -684,6 +684,25 @@ app.use('/api/proxy', (req, res, next) => {
         return res.status(400).send('Invalid URL');
     }
 });
+
+// API: List Integrations
+app.get('/api/integrations', async (req, res) => {
+    try {
+        const integrationsDir = path.resolve('integrations');
+        if (!existsSync(integrationsDir)) {
+            return res.json([]);
+        }
+        const files = await fs.readdir(integrationsDir);
+        const htmlFiles = files.filter(file => file.endsWith('.html'));
+        res.json(htmlFiles);
+    } catch (e) {
+        console.error("Integrations List Error:", e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Serve integrations as static
+app.use('/integrations', express.static(path.resolve('integrations')));
 // --- INSTAGRAM INTEGRATION ---
 
 // ------------------------------
@@ -692,7 +711,14 @@ app.use('/api/proxy', (req, res, next) => {
 app.use(express.static(path.join(__dirname, 'dist')));
 
 // Fallback to index.html for SPA routing
-app.get('/{*splat}', (req, res) => {
+// Using a middleware for reliability in Express 5
+app.use((req, res, next) => {
+    // Skip if it's an API, integrations, or has a file extension (static asset)
+    if (req.path.startsWith('/api') ||
+        req.path.startsWith('/integrations') ||
+        path.extname(req.path)) {
+        return next();
+    }
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 

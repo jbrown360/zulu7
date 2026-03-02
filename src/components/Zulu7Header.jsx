@@ -164,7 +164,12 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
     }, [isDropdownOpen, isHistoryOpen]);
 
     useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        const timer = setInterval(() => {
+            // NEW: Skip clock state updates if tap is not focused
+            if (document.visibilityState === 'visible') {
+                setCurrentTime(new Date());
+            }
+        }, 1000);
         return () => clearInterval(timer);
     }, []);
 
@@ -230,8 +235,12 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
     useEffect(() => {
         checkEvents(); // eslint-disable-line react-hooks/set-state-in-effect
 
-        // Poll every minute (for midnight rollover)
-        const interval = setInterval(checkEvents, 60000);
+        // Poll every minute (for midnight rollover), but only if active
+        const interval = setInterval(() => {
+            if (document.visibilityState === 'visible') {
+                checkEvents();
+            }
+        }, 60000);
 
         // Listen for updates from CalendarOverlay
         const handleUpdate = () => checkEvents();
@@ -332,7 +341,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                     return (
                                         <a
                                             key={i}
-                                            href={new URL(`?w=${i}${window.location.search.replace(/[?&]w=\d+/, '').replace(/^\?/, '&')}`, window.location.origin).href}
+                                            href={new URL(`?w=${i + 1}${window.location.search.replace(/[?&]w=\d+/, '').replace(/^\?/, '&')}`, window.location.origin).href}
                                             data-number={i + 1}
                                             draggable={isEnabled}
                                             onDragStart={(e) => {
@@ -547,20 +556,26 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                         return (
                             <div
                                 className={`hidden lg:flex items-center ${((!isLocked && !disablePersistence && !isRestricted) || (totalWorkspaces >= 7 && !isRestricted)) ? 'ml-1' : 'ml-4'} transition-all duration-300 pointer-events-auto`}
-                                title={isLocked || isRestricted ? workspaceName : "Double-click to rename workspace"}
+                                title={isLocked || isRestricted ? workspaceName : "Click to rename workspace"}
                             >
                                 <a
-                                    href={new URL(`?w=${activeWorkspace}${window.location.search.replace(/[?&]w=\d+/, '').replace(/^\?/, '&')}`, window.location.origin).href}
-                                    onDoubleClick={() => {
+                                    href={new URL(`?w=${activeWorkspace + 1}${window.location.search.replace(/[?&]w=\d+/, '').replace(/^\?/, '&')}`, window.location.origin).href}
+                                    onDoubleClick={(e) => {
                                         if (isLocked || isRestricted) return;
+                                        e.preventDefault();
                                         setEditValue(workspaceName);
                                         setIsEditing(true);
                                     }}
                                     onClick={(e) => {
                                         e.preventDefault();
-                                        setIsDropdownOpen(!isDropdownOpen);
+                                        if (!isLocked && !isRestricted) {
+                                            setEditValue(workspaceName);
+                                            setIsEditing(true);
+                                        } else {
+                                            setIsDropdownOpen(!isDropdownOpen);
+                                        }
                                     }}
-                                    className={`no-underline text-sm font-semibold tracking-wider ${isRestricted ? 'text-white' : 'text-orange-500'} transition-all duration-300 cursor-pointer hover:text-orange-400 flex items-center`}
+                                    className={`no-underline text-sm font-semibold tracking-wider ${isRestricted ? 'text-white' : 'text-orange-500'} transition-all duration-300 ${(!isLocked && !isRestricted) ? 'cursor-text' : 'cursor-pointer'} hover:text-orange-400 flex items-center`}
                                 >
                                     {isRestricted && (
                                         <div className="mr-2 w-5 h-3.5 border border-orange-500 rounded-[2px] flex items-center justify-center bg-orange-500/10 shrink-0 shadow-sm" title="Z7 | Shared Dashboard">

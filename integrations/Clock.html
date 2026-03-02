@@ -1,0 +1,68 @@
+<html>
+
+<head>
+    <style type="text/css">
+        /* Customizable font and colors */
+        html {
+            background: #000000;
+            font-family: sans-serif;
+            font-weight: bold;
+            color: #330000;
+
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            overflow-x: hidden;
+            overflow-y: hidden;
+
+
+
+        }
+    </style>
+
+</head>
+
+<body>
+
+    <div style="display:flex; height:100%; margin:0; padding:0; justify-content:center; align-items:center">
+        <span id="clocktext" style="font-kerning:none"></span>
+    </div>
+
+
+    <script type="text/javascript">
+        "use strict";
+
+        var textElem = document.getElementById("clocktext");
+        var targetWidth = 0.8;  // Proportion of full screen width
+        var curFontSize = 20;  // Do not change
+
+        function updateClock() {
+            var d = new Date();
+            var s = "";
+            s += ((d.getHours() + 11) % 12 + 1) + ":";
+            s += (10 > d.getMinutes() ? "0" : "") + d.getMinutes() + "\u00A0"; // + ":";
+            //s += (10 > d.getSeconds() ? "0" : "") + d.getSeconds() + "\u00A0";
+            s += d.getHours() >= 12 ? "PM" : "AM";
+            textElem.textContent = s;
+            setTimeout(updateClock, 1000 - d.getTime() % 1000 + 20);
+        }
+
+        function updateTextSize() {
+            for (var i = 0; 3 > i; i++) {  // Iterate for better better convergence
+                curFontSize *= targetWidth / (textElem.offsetWidth / textElem.parentNode.offsetWidth);
+                textElem.style.fontSize = curFontSize + "pt";
+            }
+        }
+
+        updateClock();
+        updateTextSize();
+        window.addEventListener("resize", updateTextSize);
+    </script>
+
+    </div>
+
+
+</body>
+
+</html>

@@ -30,3 +30,13 @@ dist-ssr
 public/config.json
 published_configs/
 /published_configs/
+go2rtc.yaml
+*.pid
+rbi_grep.txt
+debug_*.js
+test_*.js
+*.bak
+server_*.log
+dev_server.log
+build.log
+feed.xml

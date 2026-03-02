@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Camera, PlayCircle, RefreshCw, ArrowDownCircle, Globe, Maximize, Minimize, ExternalLink } from 'lucide-react';
+import { Camera, PlayCircle, RefreshCw, ArrowDownCircle, Globe, Maximize, Minimize, ExternalLink, AlertCircle } from 'lucide-react';
 
 const VideoWidget = ({ data, isLocked }) => {
     const [ver, setVer] = useState(0);
@@ -9,7 +9,7 @@ const VideoWidget = ({ data, isLocked }) => {
         if (!url) return '';
         try {
             // Handle YouTube
-            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+            if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('youtube-nocookie.com')) {
                 let videoId = null;
                 let playlistId = null;
 
@@ -24,16 +24,23 @@ const VideoWidget = ({ data, isLocked }) => {
                 } else if (url.includes('/shorts/')) {
                     videoId = url.split('/shorts/')[1].split('?')[0];
                 } else if (url.includes('embed/')) {
-                    return url; // Already an embed URL
+                    // Extract ID from existing embed URL
+                    videoId = url.split('embed/')[1].split('?')[0];
                 }
 
-                const origin = window.location.origin;
+                const origin = encodeURIComponent(window.location.origin);
+                // Comprehensive flags to bypass tracking/bot-checks and optimize for kiosk/dashboard
+                // hl=en: force english, widgetapi=1: help with modern verification
+                // controls=1: showing controls helps build trust with modern player APIs
+                const flags = `origin=${origin}&rel=0&modestbranding=1&playsinline=1&autoplay=1&mute=1&enablejsapi=1&widgetapi=1&hl=en&iv_load_policy=3&controls=1&widget_referrer=${origin}`;
+
                 if (videoId && playlistId) {
-                    return `https://www.youtube.com/embed/${videoId}?list=${playlistId}&origin=${origin}&rel=0&modestbranding=1&playsinline=1`;
+                    return `https://www.youtube-nocookie.com/embed/${videoId}?list=${playlistId}&${flags}`;
                 } else if (videoId) {
-                    return `https://www.youtube.com/embed/${videoId}?origin=${origin}&rel=0&modestbranding=1&playsinline=1`;
+                    // Trick: Adding &playlist=VIDEO_ID help bypass some bot/sign-in challenges
+                    return `https://www.youtube-nocookie.com/embed/${videoId}?playlist=${videoId}&${flags}`;
                 } else if (playlistId) {
-                    return `https://www.youtube.com/embed/videoseries?list=${playlistId}&origin=${origin}&rel=0&modestbranding=1&playsinline=1`;
+                    return `https://www.youtube-nocookie.com/embed/videoseries?list=${playlistId}&${flags}`;
                 }
             }
             if (url.includes(':1984')) {
@@ -60,12 +67,24 @@ const VideoWidget = ({ data, isLocked }) => {
     // Removed unused scrollRef
 
     const [isLoading, setIsLoading] = useState(true);
+    const [isMissing, setIsMissing] = useState(false);
 
     // Reset loading state when url/id changes
     // reacting to data.value or data.id changes
     React.useEffect(() => {
         setIsLoading(true);
-    }, [data.value, data.id]);
+        setIsMissing(false);
+
+        // Pre-fetch check for integrations to detect 404/missing files
+        if (data.type === 'integration') {
+            const [rawUrl] = (data.value || '').split('|');
+            fetch(rawUrl, { method: 'HEAD' })
+                .then(res => {
+                    if (!res.ok) setIsMissing(true);
+                })
+                .catch(() => setIsMissing(true));
+        }
+    }, [data.value, data.id, data.type]);
 
     const containerRef = React.useRef(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
@@ -96,8 +115,8 @@ const VideoWidget = ({ data, isLocked }) => {
         }
     };
 
-    // Render iframe for 'iframe', 'proxy', 'web', and 'camera' types
-    if (data.type === 'iframe' || data.type === 'camera' || data.type === 'proxy' || data.type === 'web') {
+    // Render iframe for 'iframe', 'proxy', 'web', 'camera', and 'integration' types
+    if (data.type === 'iframe' || data.type === 'camera' || data.type === 'proxy' || data.type === 'web' || data.type === 'integration') {
         const [rawUrl, displayName] = (data.value || '').split('|');
         const embedUrl = getEmbedUrl(rawUrl);
 
@@ -143,7 +162,7 @@ const VideoWidget = ({ data, isLocked }) => {
                 )}
 
                 {/* Controls Overlay - Refresh for iFrames, Proxy and Cameras (Locked Mode) */}
-                {isLocked && (data.type === 'iframe' || data.type === 'camera' || data.type === 'proxy' || data.type === 'web') && (
+                {isLocked && (data.type === 'iframe' || data.type === 'camera' || data.type === 'proxy' || data.type === 'web' || data.type === 'integration') && (
                     <div className="absolute top-1.5 right-3.5 z-50 flex items-center bg-black/80 backdrop-blur-md rounded-none border border-white/20 no-drag overflow-hidden">
                         {data.type === 'iframe' && (
                             <>
@@ -192,36 +211,55 @@ const VideoWidget = ({ data, isLocked }) => {
                     )}
 
                     {/* iFrame Container */}
-                    <div className="w-full h-full relative z-10">
-                        <iframe
-                            key={ver}
-                            src={embedUrl}
-                            title={data.id}
-                            style={{ colorScheme: 'dark' }}
-                            className={`w-full h-full border-0 pointer-events-auto ${data.type === 'iframe' ? 'bg-white' : ''} transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowFullScreen
-                            referrerPolicy="strict-origin-when-cross-origin"
-                            onLoad={(e) => {
-                                setIsLoading(false);
-                                try {
-                                    const doc = e.target.contentDocument;
-                                    if (doc) {
-                                        const style = doc.createElement('style');
-                                        style.textContent = `
-                                            html, body { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
-                                            /* Hide Scrollbars */
-                                            ::-webkit-scrollbar { width: 0px; background: transparent; }
-                                            * { -ms-overflow-style: none; scrollbar-width: none; }
-                                            video, img, canvas, .fill-screen { width: 100% !important; height: 100% !important; object-fit: fill !important; }
-                                            .mode, .status { display: none !important; }
-                                        `;
-                                        doc.head.appendChild(style);
-                                    }
-                                } catch (err) { /* Cross-origin ignore */ }
-                            }}
-                            loading="lazy"
-                        />
+                    <div
+                        className="w-full h-full relative z-10"
+                    >
+                        {isMissing && data.type === 'integration' ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-[#0d0d12] text-center">
+                                <AlertCircle size={48} className="text-orange-500 mb-4 opacity-50" />
+                                <h3 className="text-sm font-bold text-white uppercase tracking-widest mb-2">Integration Missing</h3>
+                                <p className="text-xs text-white/40 leading-relaxed max-w-[240px]">
+                                    The requested integration file could not be found in your local installation.
+                                </p>
+                                <div className="mt-6 pt-6 border-t border-white/5 w-full max-w-[200px]">
+                                    <p className="text-[10px] text-orange-500/50 uppercase tracking-[0.2em] font-bold">Troubleshoot</p>
+                                    <p className="text-[10px] text-white/20 mt-2 leading-tight">
+                                        Ensure the HTML file exists in the `/integrations` folder on this host.
+                                    </p>
+                                </div>
+                            </div>
+                        ) : (
+                            <iframe
+                                key={ver}
+                                src={embedUrl}
+                                title={data.id}
+                                style={{ colorScheme: 'dark', background: 'transparent' }}
+                                className={`w-full h-full border-0 pointer-events-auto ${data.type === 'iframe' ? 'bg-white' : ''} transition-opacity duration-500 ${isLoading || isMissing ? 'opacity-0' : 'opacity-100'}`}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                                allowTransparency={true}
+                                referrerPolicy="no-referrer-when-downgrade"
+                                onLoad={(e) => {
+                                    setIsLoading(false);
+                                    try {
+                                        const doc = e.target.contentDocument;
+                                        if (doc) {
+                                            const style = doc.createElement('style');
+                                            style.textContent = `
+                                                html, body { width: 100% !important; height: 100% !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
+                                                /* Hide Scrollbars */
+                                                ::-webkit-scrollbar { width: 0px; background: transparent; }
+                                                * { -ms-overflow-style: none; scrollbar-width: none; }
+                                                video, img, canvas, .fill-screen { width: 100% !important; height: 100% !important; object-fit: fill !important; }
+                                                .mode, .status { display: none !important; }
+                                            `;
+                                            doc.head.appendChild(style);
+                                        }
+                                    } catch (err) { /* Cross-origin ignore */ }
+                                }}
+                                loading="lazy"
+                            />
+                        )}
                     </div>
 
                     {/* LIVE badge for cameras */}

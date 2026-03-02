@@ -618,6 +618,23 @@ export default defineConfig({
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify({ status: 'down', error: e.message }));
             }
+          } else if (req.method === 'GET' && req.url.startsWith('/api/integrations')) {
+            try {
+              const integrationsDir = path.resolve('integrations');
+              if (!fs.existsSync(integrationsDir)) {
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify([]));
+                return;
+              }
+              const files = fs.readdirSync(integrationsDir);
+              const htmlFiles = files.filter(file => file.endsWith('.html'));
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(htmlFiles));
+            } catch (e) {
+              console.error("Integrations List Error:", e);
+              res.statusCode = 500;
+              res.end(JSON.stringify({ error: e.message }));
+            }
           } else if (req.method === 'GET' && req.url.startsWith('/api/video-proxy')) {
             const urlObj = new URL(req.url, `http://${req.headers.host}`);
             const id = urlObj.searchParams.get('id');
@@ -790,6 +807,7 @@ export default defineConfig({
             req.url.startsWith('/api/drive-folder') ||
             req.url.startsWith('/api/fetch-title') ||
             req.url.startsWith('/api/video-proxy') ||
+            req.url.startsWith('/api/integrations') ||
             req.url.startsWith('/api/rss') ||
             req.url.startsWith('/api/system-load')) {
             return req.url;

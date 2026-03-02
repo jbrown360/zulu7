@@ -9,7 +9,19 @@ const ServiceWidget = ({ widget, isLocked }) => {
     const [status, setStatus] = useState('loading'); // 'loading', 'up', 'down'
     const [lastCheck, setLastCheck] = useState(null);
     const [isVibrating, setIsVibrating] = useState(false);
+    const [isVisible, setIsVisible] = useState(true);
     const timerRef = useRef(null);
+    const containerRef = useRef(null);
+
+    // Track visibility for hibernation
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new IntersectionObserver(([entry]) => {
+            setIsVisible(entry.isIntersecting);
+        }, { threshold: 0.1 });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const checkHealth = async () => {
         if (isDisabledStr === 'true') {
@@ -62,8 +74,11 @@ const ServiceWidget = ({ widget, isLocked }) => {
         }
 
         const vibrateBurst = () => {
-            setIsVibrating(true);
-            setTimeout(() => setIsVibrating(false), 1000);
+            // Only update state if visible and focused
+            if (isVisible && document.visibilityState === 'visible') {
+                setIsVibrating(true);
+                setTimeout(() => setIsVibrating(false), 1000);
+            }
         };
 
         // Initial burst if it just went down
@@ -71,7 +86,7 @@ const ServiceWidget = ({ widget, isLocked }) => {
 
         const interval = setInterval(vibrateBurst, 3000); // Every 3 seconds
         return () => clearInterval(interval);
-    }, [status]);
+    }, [status, isVisible]);
 
     // Dispatch custom event for grid-level alerts
     useEffect(() => {
@@ -106,6 +121,7 @@ const ServiceWidget = ({ widget, isLocked }) => {
 
     return (
         <div
+            ref={containerRef}
             onClick={openService}
             style={status === 'disabled' ? {
                 backgroundColor: 'rgba(0,0,0,0.4)',
@@ -113,6 +129,7 @@ const ServiceWidget = ({ widget, isLocked }) => {
             } : {}}
             className={`w-full h-full flex flex-col items-center justify-center transition-colors duration-500 p-4 text-white group relative
             ${isLocked ? 'cursor-pointer' : ''}
+            ${isVibrating ? 'animate-vibrate-slow ring-1 ring-red-500/50' : ''}
             ${status === 'disabled' ? 'bg-amber-950/20' : isLoading ? 'bg-black/40' : isUp ? 'bg-emerald-950/40' : 'bg-rose-950/40'}`}>
 
             {/* Refresh Button - same style as other widgets */}

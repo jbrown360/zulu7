@@ -8,7 +8,7 @@ import { STORAGE_KEYS } from '../utils/constants';
 import WidgetRenderer from './WidgetRenderer';
 import AddWidgetModal from './AddWidgetModal';
 import Zulu7Header from './Zulu7Header';
-import { X, GripHorizontal, RefreshCw, CloudSun, Video, Rss, TrendingUp, Minimize, Maximize, Cast, SlidersHorizontal, Image, Activity } from 'lucide-react';
+import { X, GripHorizontal, RefreshCw, CloudSun, Video, Rss, TrendingUp, Minimize, Maximize, Cast, SlidersHorizontal, Image, Activity, Zap, Plug, AppWindow } from 'lucide-react';
 
 import CalendarOverlay from './CalendarOverlay';
 
@@ -43,8 +43,33 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
     const [isManualFullScreen, setIsManualFullScreen] = useState(false);
     const [alertStates, setAlertStates] = useState({}); // { widgetId: { status, isVibrating } }
 
-    // Undo History
     const [history, setHistory] = useState([]); // Stack of workspace states
+
+    // Focus Guardian - Prevent iframes from stealing focus automatically (breaking shortcuts)
+    const isWidgetHovered = useRef(false);
+    useEffect(() => {
+        if (!isLocked) return;
+
+        const handleBlur = () => {
+            // Delay slightly to check active element after focus transition
+            setTimeout(() => {
+                // If focus moved to an iframe but the mouse isn't over a widget, 
+                // it's likely automatic theft on load. Pull focus back to main window.
+                if (document.activeElement?.tagName === 'IFRAME' && !isWidgetHovered.current) {
+                    window.focus();
+                }
+            }, 150);
+        };
+
+        window.addEventListener('blur', handleBlur);
+        return () => window.removeEventListener('blur', handleBlur);
+    }, [isLocked]);
+
+    // Explicitly regain focus on workspace change to ensure shortcuts keep working
+    useEffect(() => {
+        isWidgetHovered.current = false;
+        window.focus();
+    }, [activeWorkspace]);
 
     const addToHistory = () => {
         setHistory(prev => {
@@ -76,6 +101,12 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
         });
     };
 
+    const stopRotation = () => {
+        if (settings?.isWorkspaceRotationEnabled) {
+            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+        }
+    };
+
     // Keyboard Listeners (Undo & Navigation)
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -83,18 +114,28 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
             if (
                 e.target.tagName === 'INPUT' ||
                 e.target.tagName === 'TEXTAREA' ||
+                e.target.tagName === 'IFRAME' ||
                 e.target.isContentEditable
             ) {
                 return;
             }
 
-            // Priority 1: Navigation (Arrows) - Works even when locked
+            // Priority 1: Navigation (Arrows / Numbers) - Works even when locked
             if (e.key === 'ArrowRight') {
+                stopRotation();
                 setActiveWorkspace(prev => calculateNextWorkspace(prev, workspaces, workspaceCount));
                 resetAutoLock();
             } else if (e.key === 'ArrowLeft') {
+                stopRotation();
                 setActiveWorkspace(prev => calculatePrevWorkspace(prev, workspaces, workspaceCount));
                 resetAutoLock();
+            } else if (isLocked && /^[1-9]$/.test(e.key)) {
+                const index = parseInt(e.key, 10) - 1;
+                if (index < workspaceCount) {
+                    stopRotation();
+                    setActiveWorkspace(index);
+                    resetAutoLock();
+                }
             }
 
             // Priority 2: Undo (Ctrl+Z) - Only when unlocked
@@ -105,7 +146,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isLocked, workspaces, workspaceCount, settings]);
+    }, [isLocked, workspaces, workspaceCount, settings, onUpdateSettings]);
 
     // Cast Support
     const [isCastAvailable, setIsCastAvailable] = useState(false);
@@ -582,6 +623,9 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
         const intervalMs = intervalSeconds * 1000;
 
         const timer = setInterval(() => {
+            // NEW: Pause rotation if tab is not focused (extreme hibernation)
+            if (document.visibilityState !== 'visible') return;
+
             // Pause rotation if any element is in full screen, UNLESS it is the root element (Kiosk Mode)
             const fsEl = document.fullscreenElement;
             if (fsEl && fsEl !== document.documentElement && fsEl !== document.body) return;
@@ -756,7 +800,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
 
             const maxY = layout.length > 0 ? Math.max(...layout.map(l => l.y + l.h)) : 0;
             // Ticker/Service: 2x1, Icon: 1x1, Iframe-like/RSS: 6x4, Weather: 4x4, Media: 3x5, Camera: 3x2, Others: 12x8
-            const isIframeLike = ['iframe', 'proxy', 'web', 'rss'].includes(type);
+            const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration'].includes(type);
             const is2x1 = ['ticker', 'service'].includes(type);
             const defaultW = is2x1 ? 2 : type === 'icon' ? 1 : type === 'weather' ? 4 : (type === 'media' || type === 'camera') ? 3 : isIframeLike ? 6 : 12;
             const defaultH = is2x1 ? 1 : type === 'icon' ? 1 : type === 'weather' ? 4 : type === 'media' ? 5 : type === 'camera' ? 2 : isIframeLike ? 4 : 8;
@@ -859,7 +903,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
             if (l.i === id) {
                 if (!nextMaximized) {
                     // Shrink to pre-maximized size or default V2 sizes
-                    const isIframeLike = ['iframe', 'proxy', 'web', 'rss'].includes(widget.type);
+                    const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration'].includes(widget.type);
                     const is2x1 = ['ticker', 'service'].includes(widget.type);
                     const defaultW = is2x1 ? 2 : widget.type === 'icon' ? 1 : widget.type === 'weather' ? 4 : (widget.type === 'media' || widget.type === 'camera') ? 3 : isIframeLike ? 6 : 12;
                     const defaultH = is2x1 ? 1 : widget.type === 'icon' ? 1 : widget.type === 'weather' ? 4 : widget.type === 'media' ? 5 : widget.type === 'camera' ? 2 : isIframeLike ? 4 : 8;
@@ -904,9 +948,11 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                 // Ctrl+Alt+Left/Right Arrow for workspace switching
                 if (e.key === 'ArrowLeft') {
                     e.preventDefault();
+                    stopRotation();
                     setActiveWorkspace(prev => calculatePrevWorkspace(prev, workspaces, workspaceCount));
                 } else if (e.key === 'ArrowRight') {
                     e.preventDefault();
+                    stopRotation();
                     setActiveWorkspace(prev => calculateNextWorkspace(prev, workspaces, workspaceCount));
                 }
             } else if (e.key === 'Escape') {
@@ -919,7 +965,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isLocked, isRestricted, isModalOpen, workspaces, workspaceCount, setActiveWorkspace]);
+    }, [isLocked, isRestricted, isModalOpen, workspaces, workspaceCount, setActiveWorkspace, settings, onUpdateSettings]);
 
 
     // Swipe Handlers
@@ -948,10 +994,12 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
 
         if (isLeftSwipe) {
             // Next Workspace
+            stopRotation();
             setActiveWorkspace(prev => calculateNextWorkspace(prev, workspaces, workspaceCount));
         }
         if (isRightSwipe) {
             // Prev Workspace
+            stopRotation();
             setActiveWorkspace(prev => calculatePrevWorkspace(prev, workspaces, workspaceCount));
         }
     };
@@ -969,8 +1017,10 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                 key={wsIndex}
                 className={`
                     w-full h-full col-start-1 row-start-1 
-                    ${isPreload ? 'invisible z-0 pointer-events-none' : 'z-10 animate-workspace-enter'}
+                    transition-opacity duration-300
+                    ${isPreload ? 'opacity-0 pointer-events-none' : 'z-10 animate-workspace-enter'}
                 `}
+                style={isPreload ? { transform: 'translateY(100vh)', position: 'absolute', visibility: 'hidden' } : {}}
                 aria-hidden={isPreload}
             >
                 <GridLayout
@@ -999,7 +1049,12 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                     resizeHandles={isLocked || isPreload ? [] : ['se']}
                 >
                     {wsData.widgets.map(widget => (
-                        <div key={widget.id} className={`widget-item relative ${widget.isMaximized ? 'widget-maximized' : ''} ${(!isLocked && !isPreload) ? 'ring-1 ring-orange-500/50 z-50' : ''}`}>
+                        <div
+                            key={widget.id}
+                            className={`widget-item relative ${widget.isMaximized ? 'widget-maximized' : ''} ${(!isLocked && !isPreload) ? 'ring-1 ring-orange-500/50 z-50' : ''}`}
+                            onMouseEnter={() => { isWidgetHovered.current = true; }}
+                            onMouseLeave={() => { isWidgetHovered.current = false; }}
+                        >
                             <div
                                 className={`
                                     widget-content h-full w-full group 
@@ -1083,6 +1138,30 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                                     <span className="text-xs font-bold truncate opacity-80">{title}</span>
                                                 </>
                                             );
+                                        })() : widget.type === 'integration' ? (() => {
+                                            const [url, displayName] = (widget.value || '').split('|');
+                                            const title = displayName || url.split('/').pop().replace('.html', '');
+                                            return (
+                                                <>
+                                                    <Plug size={14} className="mr-2 opacity-80" />
+                                                    <span className="text-xs font-bold truncate opacity-80">{title}</span>
+                                                </>
+                                            );
+                                        })() : (widget.type === 'iframe' || widget.type === 'proxy' || widget.type === 'web') ? (() => {
+                                            const [url, displayName] = (widget.value || '').split('|');
+                                            let title = displayName || 'Widget';
+                                            if (!displayName) {
+                                                try {
+                                                    const urlObj = new URL(url.startsWith('http') ? url : `https://${url}`);
+                                                    title = urlObj.hostname.replace('www.', '');
+                                                } catch { title = url; }
+                                            }
+                                            return (
+                                                <>
+                                                    <Globe size={14} className="mr-2 opacity-80" />
+                                                    <span className="text-xs font-bold truncate opacity-80">{title}</span>
+                                                </>
+                                            );
                                         })() : widget.type === 'ticker' ? null : widget.type === 'media' ? (
                                             <>
                                                 <Image size={14} className="mr-2 opacity-80" />
@@ -1118,7 +1197,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     onTouchStart={(e) => e.stopPropagation()}
                                     onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                    {['iframe', 'proxy', 'web', 'camera', 'rss'].includes(widget.type) && (
+                                    {['iframe', 'proxy', 'web', 'camera', 'rss', 'integration'].includes(widget.type) && (
                                         <>
                                             <button
                                                 className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-orange-500 transition-colors cursor-pointer no-focus"
@@ -1235,17 +1314,20 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
             {/* Main Grid Area - Remove padding in Full Screen Mode */}
             <div ref={containerRef} className={`w-full min-h-screen bg-black/20 grid grid-cols-1 grid-rows-1 overflow-y-auto overflow-x-hidden custom-scrollbar ${isFullScreenMode ? '' : 'pt-16'}`}>
                 {mounted && (() => {
-                    const nextWS = settings?.isWorkspaceRotationEnabled ? calculateNextWorkspace(activeWorkspace, workspaces, workspaceCount) : -1;
+                    // Refined Preloading: Only render Active + Next 3 enabled workspaces
+                    const activeWindow = new Set([activeWorkspace]);
+                    let currentNext = activeWorkspace;
+                    for (let j = 0; j < 3; j++) {
+                        currentNext = calculateNextWorkspace(currentNext, workspaces, workspaceCount);
+                        activeWindow.add(currentNext);
+                    }
 
                     return Array.from({ length: workspaceCount }).map((_, i) => {
-                        const isActive = i === activeWorkspace;
-                        const isNext = i === nextWS;
+                        if (!activeWindow.has(i)) return null;
 
-                        if (isActive || isNext) {
-                            // Pass true for isPreload if it is the 'next' one and NOT the active one (though usually distinct)
-                            return renderWorkspace(i, isNext && !isActive);
-                        }
-                        return null;
+                        const isActive = i === activeWorkspace;
+                        // Render workspaces in the window, mark others as hidden (isPreload)
+                        return renderWorkspace(i, !isActive);
                     });
                 })()}
             </div>
@@ -1260,8 +1342,6 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                 streamApiKey={settings?.streamApiKey}
                 onOpenSettings={onOpenSettings}
                 settings={settings}
-                totalWorkspaces={workspaceCount}
-                activeWorkspace={activeWorkspace}
             />
 
             <CalendarOverlay

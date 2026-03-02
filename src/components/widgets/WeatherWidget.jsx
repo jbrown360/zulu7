@@ -9,7 +9,7 @@ const WeatherWidget = ({ data, isLocked }) => {
     const [locationName, setLocationName] = useState('');
     const [loading, setLoading] = useState(true);
     const [localTime, setLocalTime] = useState(null);
-    // Removed unused error state
+    const [isVisible, setIsVisible] = useState(true);
 
     // Layout Logic (Pixel-based)
     const containerRef = useRef(null);
@@ -19,13 +19,24 @@ const WeatherWidget = ({ data, isLocked }) => {
 
     useEffect(() => {
         if (!containerRef.current) return;
-        const observer = new ResizeObserver((entries) => {
+        const resizeObserver = new ResizeObserver((entries) => {
             for (const entry of entries) {
                 setDimensions({ width: entry.contentRect.width, height: entry.contentRect.height });
             }
         });
-        observer.observe(containerRef.current);
-        return () => observer.disconnect();
+
+        // Track visibility for hibernation
+        const intersectionObserver = new IntersectionObserver(([entry]) => {
+            setIsVisible(entry.isIntersecting);
+        }, { threshold: 0.1 });
+
+        resizeObserver.observe(containerRef.current);
+        intersectionObserver.observe(containerRef.current);
+
+        return () => {
+            resizeObserver.disconnect();
+            intersectionObserver.disconnect();
+        };
     }, []);
 
     const CACHE_KEY = `zulu7_weather_v2_${searchTerm}_${unit}`;
@@ -113,6 +124,9 @@ const WeatherWidget = ({ data, isLocked }) => {
         if (!weather?.utc_offset_seconds) return;
 
         const updateClock = () => {
+            // NEW: Pause clock updates if not visible or focused
+            if (!isVisible || document.visibilityState !== 'visible') return;
+
             const now = new Date();
             const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
             const cityTime = new Date(utc + (weather.utc_offset_seconds * 1000));
@@ -127,7 +141,7 @@ const WeatherWidget = ({ data, isLocked }) => {
         updateClock();
         const timer = setInterval(updateClock, 1000); // 1s Updates
         return () => clearInterval(timer);
-    }, [weather?.utc_offset_seconds]);
+    }, [weather?.utc_offset_seconds, isVisible]);
 
     // Helpers
     const getWeatherIcon = (code, size = 24, className = "") => {

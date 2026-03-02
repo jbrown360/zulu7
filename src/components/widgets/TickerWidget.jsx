@@ -376,8 +376,8 @@ const TickerWidget = ({ data, finnhubKey, isLocked }) => {
             {!loading && !error && history.length > 1 && (
                 <div className="absolute inset-x-0 bottom-0 h-2/3 z-0 opacity-30 pointer-events-none">
                     <svg viewBox="0 0 300 100" className="w-full h-full" preserveAspectRatio="none">
-                        <path d={`${sparklinePath} L 300,150 L 0,150 Z`} fill="rgba(255, 255, 255, 0.2)" />
-                        <path d={sparklinePath} fill="none" stroke={isTrendUp ? "rgba(100, 255, 100, 0.8)" : "rgba(255, 100, 100, 0.8)"} strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                        <path d={`${sparklinePath} L 300,150 L 0,150 Z`} fill={isPositive ? "rgba(100, 255, 100, 0.2)" : "rgba(255, 100, 100, 0.2)"} />
+                        <path d={sparklinePath} fill="none" stroke={isPositive ? "rgba(100, 255, 100, 0.8)" : "rgba(255, 100, 100, 0.8)"} strokeWidth="2" vectorEffect="non-scaling-stroke" />
                     </svg>
                 </div>
             )}

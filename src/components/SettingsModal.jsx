@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { X, Save, Trash2, Download, Upload, Monitor, Play, Pause, Layout, Video, Copy, Check, RefreshCw, Server, Clock, Image, Lock, Activity, PlusCircle, SlidersHorizontal, Database, Home, Globe, Key, Share2, Loader2, FileDown, FileUp, GripVertical, Timer, Zap } from 'lucide-react';
 import { STORAGE_KEYS, DEFAULTS } from '../utils/constants';
 
@@ -9,6 +9,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
         onClose();
     }, [onClose]);
     const [labName, setLabName] = useState('Zulu7');
+    const backdropMouseDownRef = useRef(false);
     const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
     const [finnhubKey, setFinnhubKey] = useState('');
     const [googleApiKey, setGoogleApiKey] = useState('');
@@ -162,10 +163,19 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
     ]);
 
     // Handle Backdrop Click
+    const handleBackdropMouseDown = (e) => {
+        if (e.target === e.currentTarget) {
+            backdropMouseDownRef.current = true;
+        } else {
+            backdropMouseDownRef.current = false;
+        }
+    };
+
     const handleBackdropClick = (e) => {
-        if (e.target === e.currentTarget && !hasChanges) {
+        if (e.target === e.currentTarget && backdropMouseDownRef.current && !hasChanges) {
             handleClose();
         }
+        backdropMouseDownRef.current = false;
     };
 
 
@@ -586,6 +596,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
 
     return (
         <div
+            onMouseDown={handleBackdropMouseDown}
             onClick={handleBackdropClick}
             className="fixed inset-0 z-[200] flex items-start justify-center p-4 pt-16 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in duration-200"
         >
