@@ -20,6 +20,9 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
     const [draggedHistoryIdx, setDraggedHistoryIdx] = useState(null);
     const [historyDragOverIdx, setHistoryDragOverIdx] = useState(null);
 
+    // Wheel Scroll Guard
+    const lastWheelTime = useRef(0);
+
     // Dynamic Space Management
     const headerRef = useRef(null);
     const leftSideRef = useRef(null);
@@ -329,6 +332,29 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                         const activeBtn = el.children[activeWorkspace];
                                         if (activeBtn) {
                                             activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                                        }
+                                    }
+                                }}
+                                onWheel={(e) => {
+                                    const now = Date.now();
+                                    if (now - lastWheelTime.current < 150) return;
+                                    lastWheelTime.current = now;
+
+                                    // Identify direction
+                                    const direction = e.deltaY > 0 ? 1 : -1;
+                                    let nextIdx = (activeWorkspace + direction + totalWorkspaces) % totalWorkspaces;
+
+                                    // Find next enabled workspace in that direction
+                                    let attempts = 0;
+                                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
+                                        nextIdx = (nextIdx + direction + totalWorkspaces) % totalWorkspaces;
+                                        attempts++;
+                                    }
+
+                                    if (nextIdx !== activeWorkspace) {
+                                        setActiveWorkspace(nextIdx);
+                                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
+                                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
                                         }
                                     }
                                 }}
@@ -841,8 +867,8 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                         ) : <Unlock size={20} />}
                     </button>
                 </div>
-
             </div>
+
             {/* Ghost Measurement Container (Always Full Width, Hidden) */}
             <div
                 ref={ghostRightSideRef}
@@ -891,6 +917,5 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
         </>
     );
 };
-
 
 export default React.memo(Zulu7Header);

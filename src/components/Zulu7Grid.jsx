@@ -71,6 +71,32 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
         window.focus();
     }, [activeWorkspace]);
 
+    const calculateNextWorkspace = (current, allWorkspaces, count) => {
+        let next = (current + 1) % count;
+        let attempts = 0;
+        const selection = settings?.dashboardRotationSelection || {};
+        while (attempts < count) {
+            const isEmpty = !allWorkspaces[next]?.widgets || allWorkspaces[next].widgets.length === 0;
+            if (selection[next] !== false && !isEmpty) break;
+            next = (next + 1) % count;
+            attempts++;
+        }
+        return next;
+    };
+
+    const calculatePrevWorkspace = (current, allWorkspaces, count) => {
+        let prev = (current - 1 + count) % count;
+        let attempts = 0;
+        const selection = settings?.dashboardRotationSelection || {};
+        while (attempts < count) {
+            const isEmpty = !allWorkspaces[prev]?.widgets || allWorkspaces[prev].widgets.length === 0;
+            if (selection[prev] !== false && !isEmpty) break;
+            prev = (prev - 1 + count) % count;
+            attempts++;
+        }
+        return prev;
+    };
+
     const addToHistory = () => {
         setHistory(prev => {
             const newHistory = [...prev, JSON.parse(JSON.stringify(workspaces))];
@@ -654,39 +680,6 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
         return () => clearTimeout(autoLockTimeoutRef.current);
     }, [isLocked]);
 
-    const calculateNextWorkspace = (current, allWorkspaces, count) => {
-        let next = (current + 1) % count;
-        let attempts = 0;
-        const selection = settings?.dashboardRotationSelection || {};
-
-        // Skip disabled workspaces
-        // We only skip empty if in rotation mode, but for manual arrow keys, 
-        // maybe the user wants to see an empty one they just created?
-        // User said "switch visible workspace", usually implying enabled ones.
-        while (attempts < count) {
-            const isEmpty = !allWorkspaces[next]?.widgets || allWorkspaces[next].widgets.length === 0;
-            if (selection[next] !== false && !isEmpty) break;
-
-            next = (next + 1) % count;
-            attempts++;
-        }
-        return next;
-    };
-
-    const calculatePrevWorkspace = (current, allWorkspaces, count) => {
-        let prev = (current - 1 + count) % count;
-        let attempts = 0;
-        const selection = settings?.dashboardRotationSelection || {};
-
-        while (attempts < count) {
-            const isEmpty = !allWorkspaces[prev]?.widgets || allWorkspaces[prev].widgets.length === 0;
-            if (selection[prev] !== false && !isEmpty) break;
-
-            prev = (prev - 1 + count) % count;
-            attempts++;
-        }
-        return prev;
-    };
 
     const saveTimeoutRef = useRef(null);
 
@@ -938,34 +931,6 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
     const openAddModal = () => { setEditingWidget(null); setIsModalOpen(true); };
     const openEditModal = (widget) => { setEditingWidget(widget); setIsModalOpen(true); };
 
-    // Keyboard Shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if (isLocked) return;
-            if (isRestricted) return; // No workspace switching in restricted mode
-
-            if (e.ctrlKey && e.altKey) {
-                // Ctrl+Alt+Left/Right Arrow for workspace switching
-                if (e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    stopRotation();
-                    setActiveWorkspace(prev => calculatePrevWorkspace(prev, workspaces, workspaceCount));
-                } else if (e.key === 'ArrowRight') {
-                    e.preventDefault();
-                    stopRotation();
-                    setActiveWorkspace(prev => calculateNextWorkspace(prev, workspaces, workspaceCount));
-                }
-            } else if (e.key === 'Escape') {
-                // Escape to close modals
-                if (isModalOpen) {
-                    setIsModalOpen(false);
-                }
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isLocked, isRestricted, isModalOpen, workspaces, workspaceCount, setActiveWorkspace, settings, onUpdateSettings]);
 
 
     // Swipe Handlers
@@ -1020,11 +985,11 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                     transition-opacity duration-300
                     ${isPreload ? 'opacity-0 pointer-events-none' : 'z-10 animate-workspace-enter'}
                 `}
-                style={isPreload ? { transform: 'translateY(100vh)', position: 'absolute', visibility: 'hidden' } : {}}
+                style={isPreload ? { position: 'absolute', top: 0, left: 0, visibility: 'hidden', opacity: 0 } : {}}
                 aria-hidden={isPreload}
             >
                 <GridLayout
-                    className={`layout ${isLocked ? 'layout-locked' : ''}`}
+                    className={`layout ${isLocked ? 'layout-locked' : 'layout-unlocked'}`}
                     layout={wsData.layout.map(l => ({
                         ...l,
                         static: isLocked,
@@ -1066,11 +1031,12 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     ${isDragging ? 'pointer-events-none' : ''}
                                     ${alertStates[widget.id]?.status === 'down' ? 'widget-broken' : ''}
                                     ${alertStates[widget.id]?.isVibrating ? 'animate-shake' : ''}
+                                    ${(!isLocked && !isPreload) ? 'edit-mode' : ''}
                                 `}
                             >
                                 {/* Drag Handle - Constrained width to avoid covering buttons */}
                                 {!isLocked && !isPreload && (
-                                    <div className={`zulu-drag-handle absolute top-0 left-0 w-full h-10 px-3 z-40 cursor-grab active:cursor-grabbing flex items-center justify-start bg-black/40 backdrop-blur-sm text-white/50 hover:text-white transition-colors ${isDragging ? 'pointer-events-auto' : ''}`}>
+                                    <div className={`zulu-drag-handle absolute top-0 left-0 w-full h-10 px-3 z-40 cursor-grab active:cursor-grabbing flex items-center justify-start bg-black/60 backdrop-blur-md text-white/50 hover:text-orange-500 border-b border-white/5 transition-colors ${isDragging ? 'pointer-events-auto' : ''}`}>
                                         {widget.type === 'iframe' ? (() => {
                                             const [rawUrl, displayName] = (widget.value || '').split('|');
                                             let title = displayName || "Widget";
@@ -1185,6 +1151,8 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     key={widget.reloadVersion || 0}
                                     widget={widget}
                                     isLocked={isLocked}
+                                    isRestricted={isRestricted}
+                                    isDragging={isDragging}
                                     finnhubKey={settings?.finnhubKey}
                                 />
                             </div>
@@ -1232,6 +1200,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                     ))
                     }
                 </GridLayout >
+                <div className="grid-overlay"></div>
             </div >
         );
     };

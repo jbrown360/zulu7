@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>Snmp Visualizer - Zulu7</title>
+    <!-- Load Dygraphs from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.css" />
+    <style>
+        :root {
+            --accent-color: #344E41;
+            /* Zulu Green */
+            --bg-dark: #0d0d12;
+            --glass-bg: rgba(20, 20, 25, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --zulu-orange: #f97316;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #eee;
+        }
+
+        .chart-wrapper {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+
+        /* --- Header / Setup bar --- */
+        .chart-header {
+            display: flex;
+            padding: 4px 8px;
+            padding-right: 48px;
+            /* Avoid dashboard refresh icon */
+            gap: 8px;
+            z-index: 100;
+            border-bottom: 1px solid var(--border-color);
+            background: rgba(13, 13, 18, 0.5) !important;
+            backdrop-filter: blur(8px);
+            cursor: default;
+        }
+
+        .setup-input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            color: #888;
+            font-size: 0.75rem;
+            padding: 2px 4px;
+            outline: none;
+            transition: all 0.3s ease;
+            width: 100px;
+        }
+
+        .setup-input:focus {
+            border-bottom-color: var(--zulu-orange);
+            color: #fff;
+        }
+
+        .setup-input.oid {
+            width: 130px;
+        }
+
+        .setup-input.port {
+            width: 50px;
+        }
+
+        .setup-input.label {
+            flex: 1;
+        }
+
+        .snmp-tag {
+            color: var(--zulu-orange);
+            font-weight: 800;
+            font-size: 11px;
+            /* No uppercase */
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            user-select: none;
+            margin-right: 8px;
+            padding: 2px 0;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .snmp-tag:hover {
+            opacity: 1;
+            text-decoration: none;
+            background: transparent !important;
+        }
+
+        /* --- Chart Area --- */
+        #chart-div {
+            flex: 1;
+            width: 100%;
+            height: 0;
+            min-height: 0;
+            cursor: crosshair;
+        }
+
+        /* Dygraph Overrides */
+        .dygraph-legend {
+            display: none !important;
+        }
+
+        .dygraph-axis-label {
+            color: #888 !important;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        /* --- Hover Values --- */
+        .chart-values {
+            position: fixed;
+            pointer-events: none;
+            z-index: 50;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            min-width: 140px;
+        }
+
+        .chart-values:not(:empty) {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .value-item {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .tooltip-time {
+            color: #888;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* --- Background Watermark --- */
+        .chart-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            user-select: none;
+            text-align: center;
+        }
+
+        .status-msg {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .watermark-sub {
+            font-size: clamp(0.8rem, 4vw, 2.2rem);
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.04);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }
+
+        .watermark-main {
+            font-size: clamp(1.5rem, 15vw, 8rem);
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.06);
+            text-transform: uppercase;
+            letter-spacing: -0.05em;
+            line-height: 0.8;
+        }
+
+        .chart-wrapper:hover .chart-watermark,
+        body.is-fullscreen .chart-watermark {
+            opacity: 1;
+        }
+
+        /* Locked / Restricted Mode */
+        body.is-locked .chart-header {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chart-wrapper">
+        <div class="chart-header">
+            <span id="apply" class="snmp-tag">Snmp</span>
+            <input type="text" id="host" class="setup-input" placeholder="IP/Host" value="192.168.1.80">
+            <input type="number" id="port" class="setup-input port" placeholder="161" value="161">
+            <input type="text" id="community" class="setup-input" placeholder="Community" value="zulu7">
+            <input type="text" id="oid" class="setup-input oid" placeholder="OID (e.g. .1.3.6...)"
+                value=".1.3.6.1.2.1.1.1.0">
+            <input type="text" id="label" class="setup-input label" placeholder="Label" value="SNMP Device">
+        </div>
+
+        <div id="chart-values" class="chart-values"></div>
+        <div class="chart-watermark">
+            <div id="watermark-sub" class="watermark-sub">Snmp POLL</div>
+            <div id="watermark-main" class="watermark-main">ZULU7</div>
+        </div>
+
+        <div id="chart-div"></div>
+        <div id="status" class="status-msg">STABLE</div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = `zulu7_snmp_${window.name || 'default'}`;
+        const MAX_POINTS = 500;
+        const POLL_INTERVAL = 30000;
+
+        let g = null;
+        let dataPoints = [];
+        let pollTimer = null;
+
+        // Load Settings
+        let settings = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+            host: '192.168.1.80',
+            port: 161,
+            community: 'zulu7',
+            oid: '.1.3.6.1.4.1.6574.3.1.1.4.0', // Synology Storage Volume 1 (Available Free Space)
+            label: 'Free Space',
+            viewWindowMs: 15 * 60 * 1000 // Default 15 minutes
+        };
+        if (!settings.viewWindowMs) settings.viewWindowMs = 15 * 60 * 1000;
+
+        const hostEl = document.getElementById('host');
+        const portEl = document.getElementById('port');
+        const commEl = document.getElementById('community');
+        const oidEl = document.getElementById('oid');
+        const labelEl = document.getElementById('label');
+        const watermarkMain = document.getElementById('watermark-main');
+        const watermarkSub = document.getElementById('watermark-sub');
+        const statusEl = document.getElementById('status');
+
+        // Apply Settings to UI
+        hostEl.value = settings.host;
+        portEl.value = settings.port || 161;
+        commEl.value = settings.community;
+        oidEl.value = settings.oid;
+        labelEl.value = settings.label;
+        watermarkMain.textContent = settings.label; // No upper case
+        watermarkSub.textContent = settings.oid;
+
+        // Check for Locked Mode
+        const urlParams = new URLSearchParams(window.location.search);
+        const isLocked = urlParams.get('locked') === 'true';
+        if (isLocked) document.body.classList.add('is-locked');
+
+        // Auto-save logic
+        function applySettings(forceReset = false) {
+            const oldHost = settings.host;
+            const oldPort = settings.port;
+            const oldComm = settings.community;
+            const oldOid = settings.oid;
+            const oldLabel = settings.label;
+
+            settings = {
+                host: hostEl.value,
+                port: parseInt(portEl.value) || 161,
+                community: commEl.value,
+                oid: oidEl.value,
+                label: labelEl.value,
+                viewWindowMs: settings.viewWindowMs
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+            watermarkMain.textContent = settings.label;
+            watermarkSub.textContent = settings.oid;
+
+            // If connection params changed, clear data and restart
+            if (forceReset || oldHost !== settings.host || oldPort !== settings.port ||
+                oldComm !== settings.community || oldOid !== settings.oid) {
+                console.log("[SNMP] Connection settings changed, resetting data.");
+                dataPoints = [];
+                if (g) { g.destroy(); g = null; }
+                startPolling();
+            } else if (oldLabel !== settings.label) {
+                // If only label changed, update current graph
+                console.log("[SNMP] Label updated, updating graph options.");
+                if (g) {
+                    g.updateOptions({ labels: ["Time", settings.label] });
+                }
+            }
+        }
+
+        // Real-time label reactivity
+        labelEl.addEventListener('input', () => {
+            watermarkMain.textContent = labelEl.value;
+            if (g) {
+                g.updateOptions({ labels: ["Time", labelEl.value] });
+            }
+        });
+
+        // Auto-save on change
+        [hostEl, portEl, commEl, oidEl, labelEl].forEach(el => {
+            el.addEventListener('change', () => applySettings());
+        });
+
+        // Manual force sync
+        document.getElementById('apply').addEventListener('click', () => applySettings(true));
+
+        async function poll() {
+            console.log(`[SNMP] Polling ${settings.host}:${settings.port || 161} - ${settings.oid}...`);
+            statusEl.style.display = 'block';
+            statusEl.textContent = 'POLLING...';
+
+            try {
+                const url = `/api/snmp?host=${encodeURIComponent(settings.host)}&port=${settings.port || 161}&community=${encodeURIComponent(settings.community)}&oid=${encodeURIComponent(settings.oid)}&_=${Date.now()}`;
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("[SNMP] Raw Data:", data);
+
+                if (data && data[0] && data[0].value !== undefined) {
+                    if (data[0].error) {
+                        throw new Error(`SNMP Error: ${data[0].error}`);
+                    }
+
+                    let val = data[0].value;
+
+                    // Robust numeric parsing
+                    if (typeof val === 'string') {
+                        val = parseFloat(val);
+                    } else if (typeof val === 'object' && val.data) {
+                        const decoded = new TextDecoder().decode(new Uint8Array(val.data)).trim();
+                        val = parseFloat(decoded);
+                    }
+
+                    if (isNaN(val) || !isFinite(val)) {
+                        throw new Error(`Non-numeric value: ${JSON.stringify(data[0].value)}`);
+                    }
+
+                    console.log("[SNMP] Parsed Value:", val);
+                    const timestamp = new Date();
+                    dataPoints.push([timestamp, val]);
+
+                    if (dataPoints.length > MAX_POINTS) dataPoints.shift();
+                    updateChart();
+                    statusEl.textContent = `SUCCESS (${data[0].oid})`;
+                } else {
+                    throw new Error("Empty response");
+                }
+            } catch (err) {
+                console.error("[SNMP] Error:", err);
+                statusEl.textContent = `ERROR: ${err.message}`;
+                statusEl.style.display = 'block';
+            } finally {
+                setTimeout(() => { if (statusEl.textContent !== 'ERROR') statusEl.style.display = 'none'; }, 2000);
+            }
+        }
+
+        function updateChart() {
+            if (dataPoints.length < 1) return;
+
+            if (!g) {
+                g = new Dygraph(document.getElementById("chart-div"), dataPoints, {
+                    labels: ["Time", settings.label],
+                    strokeWidth: 2,
+                    colors: ["#344E41"], // Zulu Green
+                    fillGraph: true,
+                    fillAlpha: 0.1,
+                    drawXAxis: true,
+                    drawYAxis: true,
+                    gridLineColor: 'rgba(255,255,255,0.05)',
+                    axisLineColor: 'transparent',
+                    drawPoints: true,
+                    pointSize: 3,
+                    highlightCircleSize: 6,
+                    drawHighlightPointCallback: function (g, name, ctx, cx, cy, color, radius) {
+                        ctx.beginPath();
+                        ctx.fillStyle = "#f97316"; // Zulu Orange
+                        ctx.arc(cx, cy, radius, 0, 2 * Math.PI, false);
+                        ctx.fill();
+                    },
+                    labelsDiv: document.getElementById('chart-values'),
+                    legend: 'always',
+                    xAxisHeight: 20,
+                    axes: {
+                        x: {
+                            axisLabelFormatter: (d) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                            valueFormatter: (ms) => new Date(ms).toLocaleTimeString()
+                        },
+                        y: {
+                            axisLabelWidth: 40,
+                            axisLabelFormatter: (v) => v.toLocaleString()
+                        }
+                    },
+                    dateWindow: [new Date().getTime() - settings.viewWindowMs, new Date().getTime()],
+                    legendFormatter: function (data) {
+                        if (data.x === undefined || !data.series[0]) return '';
+
+                        // Extract and format timestamp from the graph's X value
+                        const timeStr = new Date(data.x).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit'
+                        });
+
+                        return `
+                            <div style="color: #f97316; font-weight: 800; font-size: 0.75rem; text-transform: uppercase;">${data.series[0].labelHTML}</div>
+                            <div class="tooltip-time">${timeStr}</div>
+                            <div class="value-item">${data.series[0].y !== null && data.series[0].y !== undefined ? data.series[0].y.toLocaleString() : data.series[0].yHTML}</div>
+                        `;
+                    }
+                });
+            } else {
+                const now = new Date().getTime();
+                g.updateOptions({
+                    file: dataPoints,
+                    dateWindow: [now - settings.viewWindowMs, now]
+                });
+            }
+        }
+
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+            poll(); // Initial poll
+            pollTimer = setInterval(poll, POLL_INTERVAL);
+        }
+
+        // --- Click to Fullscreen Message ---
+        let clickStartTime = 0;
+        const chartWrapper = document.querySelector('.chart-wrapper');
+        chartWrapper.addEventListener('mousedown', () => {
+            clickStartTime = Date.now();
+        });
+
+        chartWrapper.addEventListener('click', (e) => {
+            // Do not trigger fullscreen if clicking inputs or title tag
+            if (e.target.closest('.chart-header')) return;
+
+            const clickDuration = Date.now() - clickStartTime;
+            // Only trigger fullscreen if it was a quick click (not a drag/zoom)
+            if (clickDuration < 250) {
+                window.parent.postMessage('zulu7-request-fullscreen', '*');
+            }
+        });
+
+        // --- Wheel Scale Support ---
+        const TIME_STEPS = [
+            1 * 60 * 1000,      // 1m
+            5 * 60 * 1000,      // 5m
+            15 * 60 * 1000,     // 15m
+            30 * 60 * 1000,     // 30m
+            60 * 60 * 1000,     // 1h
+            3 * 60 * 60 * 1000,  // 3h
+            6 * 60 * 60 * 1000,  // 6h
+            12 * 60 * 60 * 1000, // 12h
+            24 * 60 * 60 * 1000  // 24h
+        ];
+
+        chartWrapper.addEventListener('wheel', (e) => {
+            e.preventDefault();
+
+            // Find closest index
+            let currentIndex = 0;
+            let minDiff = Infinity;
+            TIME_STEPS.forEach((step, idx) => {
+                const diff = Math.abs(step - settings.viewWindowMs);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    currentIndex = idx;
+                }
+            });
+
+            if (e.deltaY > 0) {
+                // Scroll down -> Zoom OUT (Expand time)
+                currentIndex = Math.min(TIME_STEPS.length - 1, currentIndex + 1);
+            } else {
+                // Scroll up -> Zoom IN (Compress time)
+                currentIndex = Math.max(0, currentIndex - 1);
+            }
+
+            settings.viewWindowMs = TIME_STEPS[currentIndex];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+
+            if (g) {
+                const now = new Date().getTime();
+                g.updateOptions({ dateWindow: [now - settings.viewWindowMs, now] });
+            }
+        }, { passive: false });
+
+        // --- Handle Fullscreen State from Parent ---
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'zulu7-fullscreen-state') {
+                if (event.data.isActive) {
+                    document.body.classList.add('is-fullscreen');
+                } else {
+                    document.body.classList.remove('is-fullscreen');
+                }
+                // Force an immediate resize
+                if (g) {
+                    g.resize();
+                    setTimeout(() => g.resize(), 50);
+                    setTimeout(() => g.resize(), 300);
+                }
+            }
+        });
+
+        // --- Mouse Tracking for Tooltip ---
+        const legendEl = document.getElementById('chart-values');
+
+        chartWrapper.addEventListener('mousemove', (e) => {
+            if (legendEl.style.display !== 'none' && legendEl.innerHTML !== '') {
+                const padding = 15;
+                let lx = e.clientX + padding;
+                let ly = e.clientY + padding;
+
+                // Collision detection (Viewport bounds)
+                const box = legendEl.getBoundingClientRect();
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+
+                if (lx + box.width > winW) lx = e.clientX - box.width - padding;
+                if (ly + box.height > winH) ly = e.clientY - box.height - padding;
+
+                legendEl.style.left = lx + 'px';
+                legendEl.style.top = ly + 'px';
+            }
+        });
+
+        startPolling();
+    </script>
+</body>
+
+</html>
