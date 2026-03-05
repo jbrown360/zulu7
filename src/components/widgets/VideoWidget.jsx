@@ -254,6 +254,7 @@ const VideoWidget = ({ data, isLocked }) => {
                                 ref={iframeRef}
                                 key={ver}
                                 src={embedUrl}
+                                name={data.id}
                                 title={data.id}
                                 style={{ colorScheme: 'dark', background: 'transparent' }}
                                 className={`w-full h-full border-0 pointer-events-auto ${data.type === 'iframe' ? 'bg-white' : ''} transition-opacity duration-500 ${isLoading || isMissing ? 'opacity-0' : 'opacity-100'}`}

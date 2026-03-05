@@ -48,16 +48,22 @@
 
         /* --- Header / Setup bar --- */
         .chart-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
             display: flex;
-            padding: 4px 8px;
+            padding: 8px 12px;
             padding-right: 48px;
             /* Avoid dashboard refresh icon */
-            gap: 8px;
+            gap: 12px;
             z-index: 100;
             border-bottom: 1px solid var(--border-color);
-            background: rgba(13, 13, 18, 0.5) !important;
-            backdrop-filter: blur(8px);
+            background: rgba(13, 13, 18, 0.45) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             cursor: default;
+            transition: transform 0.3s ease, background 0.3s ease;
         }
 
         .setup-input {
@@ -216,7 +222,11 @@
 
         /* Locked / Restricted Mode */
         body.is-locked .chart-header {
-            display: none !important;
+            background: rgba(13, 13, 18, 0.2) !important;
+        }
+
+        body.is-locked .chart-header:hover {
+            background: rgba(13, 13, 18, 0.6) !important;
         }
     </style>
 </head>
@@ -228,6 +238,10 @@
             <input type="text" id="host" class="setup-input" placeholder="IP/Host" value="192.168.1.80">
             <input type="number" id="port" class="setup-input port" placeholder="161" value="161">
             <input type="text" id="community" class="setup-input" placeholder="Community" value="zulu7">
+            <select id="version" class="setup-input" style="width: 50px;">
+                <option value="0">v1</option>
+                <option value="1" selected>v2c</option>
+            </select>
             <input type="text" id="oid" class="setup-input oid" placeholder="OID (e.g. .1.3.6...)"
                 value=".1.3.6.1.2.1.1.1.0">
             <input type="text" id="label" class="setup-input label" placeholder="Label" value="SNMP Device">
@@ -257,6 +271,7 @@
             host: '192.168.1.80',
             port: 161,
             community: 'zulu7',
+            version: 1, // Default to v2c (1)
             oid: '.1.3.6.1.4.1.6574.3.1.1.4.0', // Synology Storage Volume 1 (Available Free Space)
             label: 'Free Space',
             viewWindowMs: 15 * 60 * 1000 // Default 15 minutes
@@ -266,6 +281,7 @@
         const hostEl = document.getElementById('host');
         const portEl = document.getElementById('port');
         const commEl = document.getElementById('community');
+        const verEl = document.getElementById('version');
         const oidEl = document.getElementById('oid');
         const labelEl = document.getElementById('label');
         const watermarkMain = document.getElementById('watermark-main');
@@ -276,6 +292,7 @@
         hostEl.value = settings.host;
         portEl.value = settings.port || 161;
         commEl.value = settings.community;
+        verEl.value = settings.version !== undefined ? settings.version : 1;
         oidEl.value = settings.oid;
         labelEl.value = settings.label;
         watermarkMain.textContent = settings.label; // No upper case
@@ -291,6 +308,7 @@
             const oldHost = settings.host;
             const oldPort = settings.port;
             const oldComm = settings.community;
+            const oldVersion = settings.version;
             const oldOid = settings.oid;
             const oldLabel = settings.label;
 
@@ -298,6 +316,7 @@
                 host: hostEl.value,
                 port: parseInt(portEl.value) || 161,
                 community: commEl.value,
+                version: parseInt(verEl.value),
                 oid: oidEl.value,
                 label: labelEl.value,
                 viewWindowMs: settings.viewWindowMs
@@ -308,7 +327,7 @@
 
             // If connection params changed, clear data and restart
             if (forceReset || oldHost !== settings.host || oldPort !== settings.port ||
-                oldComm !== settings.community || oldOid !== settings.oid) {
+                oldComm !== settings.community || oldOid !== settings.oid || oldVersion !== settings.version) {
                 console.log("[SNMP] Connection settings changed, resetting data.");
                 dataPoints = [];
                 if (g) { g.destroy(); g = null; }
@@ -331,7 +350,7 @@
         });
 
         // Auto-save on change
-        [hostEl, portEl, commEl, oidEl, labelEl].forEach(el => {
+        [hostEl, portEl, commEl, verEl, oidEl, labelEl].forEach(el => {
             el.addEventListener('change', () => applySettings());
         });
 
@@ -344,7 +363,7 @@
             statusEl.textContent = 'POLLING...';
 
             try {
-                const url = `/api/snmp?host=${encodeURIComponent(settings.host)}&port=${settings.port || 161}&community=${encodeURIComponent(settings.community)}&oid=${encodeURIComponent(settings.oid)}&_=${Date.now()}`;
+                const url = `/api/snmp?host=${encodeURIComponent(settings.host)}&port=${settings.port || 161}&community=${encodeURIComponent(settings.community)}&version=${settings.version || 1}&oid=${encodeURIComponent(settings.oid)}&_=${Date.now()}`;
                 const response = await fetch(url);
 
                 if (!response.ok) {

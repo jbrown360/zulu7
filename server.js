@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { exec } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
+import snmp from 'net-snmp';
 
 
 // Global HTTPS Agent for reuse
@@ -357,6 +358,46 @@ app.get('/api/fetch-title', async (req, res) => {
         console.error("Fetch Title Error:", e);
         res.json({ title: '' });
     }
+});
+
+// API: SNMP Proxy
+app.get('/api/snmp', (req, res) => {
+    const { host, port, community, oid, version } = req.query;
+    if (!host || !oid) return res.status(400).json({ error: 'Missing parameters' });
+
+    // net-snmp requires OIDs without a leading dot
+    const cleanOid = oid.startsWith('.') ? oid.slice(1) : oid;
+
+    // Default to v2c (1) if not specified, 0 is v1
+    const snmpVersion = version !== undefined ? parseInt(version) : snmp.Version2c;
+
+    const session = snmp.createSession(host, community || 'public', {
+        port: parseInt(port) || 161,
+        retries: 1,
+        timeout: 5000,
+        version: snmpVersion
+    });
+
+    session.get([cleanOid], (error, varbinds) => {
+        if (error) {
+            console.error(`[SNMP] Error fetching ${oid} from ${host}:`, error);
+            res.status(500).json({ error: error.toString() });
+        } else {
+            const results = varbinds.map(vb => {
+                let value = vb.value;
+                if (snmp.isVarbindError(vb)) {
+                    return { oid: vb.oid, error: snmp.varbindError(vb) };
+                } else {
+                    if (Buffer.isBuffer(value)) {
+                        value = value.toString();
+                    }
+                    return { oid: vb.oid, value: value };
+                }
+            });
+            res.json(results);
+        }
+        session.close();
+    });
 });
 
 // API: Universal Media Folder Scraper (Local, GDrive, HTTP)
