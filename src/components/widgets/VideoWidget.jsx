@@ -7,61 +7,68 @@ const VideoWidget = ({ data, isLocked }) => {
 
     const getEmbedUrl = (url) => {
         if (!url) return '';
-        try {
-            // Handle YouTube
-            if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('youtube-nocookie.com')) {
-                let videoId = null;
-                let playlistId = null;
 
-                if (url.includes('list=')) {
-                    playlistId = url.split('list=')[1].split('&')[0];
-                }
+        // Handle YouTube
+        if (url.includes('youtube.com') || url.includes('youtu.be') || url.includes('youtube-nocookie.com')) {
+            let videoId = null;
+            let playlistId = null;
 
-                if (url.includes('v=')) {
-                    videoId = url.split('v=')[1].split('&')[0];
-                } else if (url.includes('youtu.be/')) {
-                    videoId = url.split('youtu.be/')[1].split('?')[0];
-                } else if (url.includes('/shorts/')) {
-                    videoId = url.split('/shorts/')[1].split('?')[0];
-                } else if (url.includes('embed/')) {
-                    // Extract ID from existing embed URL
-                    videoId = url.split('embed/')[1].split('?')[0];
-                }
-
-                const origin = encodeURIComponent(window.location.origin);
-                // Comprehensive flags to bypass tracking/bot-checks and optimize for kiosk/dashboard
-                // hl=en: force english, widgetapi=1: help with modern verification
-                // controls=1: showing controls helps build trust with modern player APIs
-                const flags = `origin=${origin}&rel=0&modestbranding=1&playsinline=1&autoplay=1&mute=1&enablejsapi=1&widgetapi=1&hl=en&iv_load_policy=3&controls=1&widget_referrer=${origin}`;
-
-                if (videoId && playlistId) {
-                    return `https://www.youtube-nocookie.com/embed/${videoId}?list=${playlistId}&${flags}`;
-                } else if (videoId) {
-                    // Trick: Adding &playlist=VIDEO_ID help bypass some bot/sign-in challenges
-                    return `https://www.youtube-nocookie.com/embed/${videoId}?playlist=${videoId}&${flags}`;
-                } else if (playlistId) {
-                    return `https://www.youtube-nocookie.com/embed/videoseries?list=${playlistId}&${flags}`;
-                }
-            }
-            if (url.includes(':1984')) {
-                // Rewrite legacy Go2RTC URLs to use relative proxy path
-                // e.g., http://192.168.1.111:1984/stream.html?src=... -> /stream.html?src=...
-                const path = url.split(':1984')[1];
-                return path;
+            if (url.includes('list=')) {
+                playlistId = url.split('list=')[1].split('&')[0];
             }
 
-            // Wrap generic URLs in the proxy for 'proxy' or 'web' type to bypass X-Frame-Options/CSP
-            if ((data.type === 'proxy' || data.type === 'web') && (url.startsWith('http') || url.startsWith('www'))) {
-                // Skip proxying for YouTube as it has its own embed system
-                if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
-                    return `/api/proxy?url=${encodeURIComponent(url)}`;
-                }
+            if (url.includes('v=')) {
+                videoId = url.split('v=')[1].split('&')[0];
+            } else if (url.includes('youtu.be/')) {
+                videoId = url.split('youtu.be/')[1].split('?')[0];
+            } else if (url.includes('/shorts/')) {
+                videoId = url.split('/shorts/')[1].split('?')[0];
+            } else if (url.includes('embed/')) {
+                // Extract ID from existing embed URL
+                videoId = url.split('embed/')[1].split('?')[0];
             }
 
-            return url;
-        } catch {
-            return url;
+            const origin = encodeURIComponent(window.location.origin);
+            // Comprehensive flags to bypass tracking/bot-checks and optimize for kiosk/dashboard
+            // hl=en: force english, widgetapi=1: help with modern verification
+            // controls=1: showing controls helps build trust with modern player APIs
+            const flags = `origin=${origin}&rel=0&modestbranding=1&playsinline=1&autoplay=1&mute=1&enablejsapi=1&widgetapi=1&hl=en&iv_load_policy=3&controls=1&widget_referrer=${origin}`;
+
+            if (videoId && playlistId) {
+                return `https://www.youtube-nocookie.com/embed/${videoId}?list=${playlistId}&${flags}`;
+            } else if (videoId) {
+                // Trick: Adding &playlist=VIDEO_ID help bypass some bot/sign-in challenges
+                return `https://www.youtube-nocookie.com/embed/${videoId}?playlist=${videoId}&${flags}`;
+            } else if (playlistId) {
+                return `https://www.youtube-nocookie.com/embed/videoseries?list=${playlistId}&${flags}`;
+            }
         }
+        if (url.includes(':1984')) {
+            // Rewrite legacy Go2RTC URLs to use relative proxy path
+            // e.g., http://192.168.1.111:1984/stream.html?src=... -> /stream.html?src=...
+            const path = url.split(':1984')[1];
+            return path;
+        }
+
+        if ((data.type === 'proxy' || data.type === 'web' || data.type === 'integration') && (url.startsWith('http') || url.startsWith('www') || url.startsWith('/'))) {
+            // Skip proxying for YouTube as it has its own embed system
+            if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+                let finalUrl = url;
+                if (data.type === 'proxy' || data.type === 'web') {
+                    finalUrl = `/api/proxy?url=${encodeURIComponent(url)}`;
+                }
+
+                // Propagate locked state to integrations so they can handle clicks
+                if (data.type === 'integration' && isLocked) {
+                    const separator = finalUrl.includes('?') ? '&' : '?';
+                    finalUrl += `${separator}locked=true`;
+                }
+
+                return finalUrl;
+            }
+        }
+
+        return url;
     };
 
     // Removed unused scrollRef
@@ -87,6 +94,7 @@ const VideoWidget = ({ data, isLocked }) => {
     }, [data.value, data.id, data.type]);
 
     const containerRef = React.useRef(null);
+    const iframeRef = React.useRef(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
 
     React.useEffect(() => {
@@ -95,11 +103,24 @@ const VideoWidget = ({ data, isLocked }) => {
             setIsFullscreen(document.fullscreenElement === containerRef.current);
         };
 
+        const handleMessage = (event) => {
+            // Security: Only listen to messages from our OWN iframe
+            if (iframeRef.current && event.source === iframeRef.current.contentWindow) {
+                if (event.data === 'zulu7-request-fullscreen') {
+                    console.log(`[VideoWidget] Fullscreen requested by child: ${data.id}`);
+                    toggleFullScreen();
+                }
+            }
+        };
+
         document.addEventListener('fullscreenchange', handleFullscreenChange);
+        window.addEventListener('message', handleMessage);
+
         return () => {
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
+            window.removeEventListener('message', handleMessage);
         };
-    }, []);
+    }, [data.id]); // Re-bind if widget ID changes
 
     const toggleFullScreen = () => {
         // If we are not currently the full screen element (even if something else is), request it
@@ -230,6 +251,7 @@ const VideoWidget = ({ data, isLocked }) => {
                             </div>
                         ) : (
                             <iframe
+                                ref={iframeRef}
                                 key={ver}
                                 src={embedUrl}
                                 title={data.id}

@@ -333,9 +333,13 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                 className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-orange-500/50 appearance-none cursor-pointer"
                             >
                                 <option value="" disabled className="bg-[#1a1a20]">Choose an Integration...</option>
-                                {integrations.map(file => (
-                                    <option key={file} value={file} className="bg-[#1a1a20]">{file.replace('.html', '')}</option>
-                                ))}
+                                {integrations.map(file => {
+                                    const integrationName = file.replace('.html', '');
+                                    const capitalized = integrationName.charAt(0).toUpperCase() + integrationName.slice(1);
+                                    return (
+                                        <option key={file} value={file} className="bg-[#1a1a20]">{capitalized}</option>
+                                    );
+                                })}
                             </select>
                         ) : (type === 'rss' || type === 'media') ? (
                             <textarea

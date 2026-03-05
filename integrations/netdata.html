@@ -228,9 +228,6 @@
             font-size: 0.65rem;
             color: #f97316;
             opacity: 0.9;
-            background: rgba(249, 115, 22, 0.1);
-            padding: 2px 6px;
-            border-radius: 2px;
             font-weight: 800;
             text-transform: uppercase;
         }
@@ -329,51 +326,75 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+            gap: 1.5rem;
+            /* More space between server and chart names */
             pointer-events: none !important;
             z-index: 0;
-            opacity: 0;
-            transition: opacity 0.4s ease;
+            opacity: 1;
+            /* Always visible */
             user-select: none;
             text-align: center;
+            width: 100%;
+            padding: 0 2.5rem;
+            /* Breathing room on sides */
+            box-sizing: border-box;
         }
 
         .watermark-server {
-            font-size: clamp(10px, 1.5vw, 18px);
+            font-size: clamp(1.5rem, 10vw, 8rem);
+            /* Refined scaling */
             font-weight: 800;
-            color: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.08);
+            /* Matched brightness */
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: 0.2em;
+            line-height: 1;
         }
 
         .watermark-chart {
-            font-size: clamp(18px, 4vw, 36px);
+            font-size: clamp(3rem, 18vw, 15rem);
+            /* Refined scaling to fill ~80% with padding */
             font-weight: 900;
             color: rgba(255, 255, 255, 0.08);
+            /* Brighter and more distinct */
             text-transform: uppercase;
             letter-spacing: -0.05em;
-            line-height: 0.8;
-            transition: all 0.3s ease;
+            line-height: 0.7;
+            margin-top: -0.1em;
+        }
+
+        /* Adjustments for Value/Gauge modes where watermarks need to stay legible but not overwhelming */
+        .chart-watermark.large {
+            gap: 1rem;
         }
 
         .chart-watermark.large .watermark-server {
-            font-size: clamp(1.5rem, 4vw, 4rem);
-            color: rgba(255, 255, 255, 0.03);
+            font-size: clamp(4.5rem, 24vw, 18rem);
+            /* Massively increased to target 80% width when no component label */
+            color: rgba(255, 255, 255, 0.06);
         }
 
         .chart-watermark.large .watermark-chart {
-            font-size: clamp(3rem, 15vw, 18rem);
-            color: rgba(255, 255, 255, 0.05);
+            font-size: clamp(4rem, 20vw, 15rem);
+            color: rgba(255, 255, 255, 0.06);
         }
 
-        .chart-wrapper:hover .chart-watermark,
-        body.is-fullscreen .chart-watermark {
-            opacity: 1;
+        /* Removed hover-only opacity - watermarks are always visible */
+
+        body.is-locked .chart-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to bottom, rgba(13, 13, 18, 0.95) 0%, rgba(13, 13, 18, 0.7) 60%, transparent 100%);
+            padding: 8px 12px 24px 12px;
+            z-index: 200;
+            /* Above the chart */
+            display: flex !important;
         }
 
-        /* --- Locked Mode Overrides --- */
-        body.is-locked .chart-header,
         body.is-locked .search-overlay {
-            display: none !important;
+            display: flex !important;
         }
 
         body.is-locked .chart-wrapper,
@@ -393,20 +414,20 @@
 
             body.is-locked .input-server-label,
             body.is-locked .input-chart-label {
-                font-size: 1.5rem;
+                font-size: 0.85rem;
             }
 
             body.is-locked .header-controls {
-                height: 60px;
-                gap: 20px;
-                pointer-events: none;
+                height: auto;
+                gap: 12px;
+                pointer-events: auto;
             }
 
             body.is-locked .time-label {
                 font-size: 1.2rem;
                 height: 48px;
                 padding: 0 24px;
-                pointer-events: none;
+                pointer-events: auto;
             }
         }
 
@@ -613,6 +634,9 @@
         // --- Bulletproof User Interaction Capture ---
         // We use capturing phase to catch the event before any library (like Dygraphs) can stop it.
         window.addEventListener('mousedown', (e) => {
+            // Ignore clicks on header or its children (dropdowns, search, etc.)
+            if (e.target.closest('.chart-header')) return;
+
             // We ALWAYS send the message if the body says we are locked.
             if (document.body.classList.contains('is-locked')) {
                 console.log("[Netdata] Locked click detected, requesting fullscreen...");
@@ -634,6 +658,9 @@
         });
 
         window.addEventListener('wheel', (e) => {
+            // Ignore if scrolling within the search results list
+            if (e.target.closest('.results-list')) return;
+
             // Forward wheel events to parent
             // Parent will filter this based on lock state
             window.parent.postMessage({ type: 'zulu7-wheel', deltaY: e.deltaY }, '*');
@@ -786,7 +813,6 @@
 
         // Fetch metrics from all servers
         async function fetchAllMetrics() {
-            if (isLocked) return; // KILL-SWITCH: No fetching metrics in lock mode
             const results = await Promise.allSettled(NETDATA_SERVERS.map(async (server) => {
                 const response = await fetch(`${server.host}/api/v1/charts`);
                 if (!response.ok) throw new Error();
@@ -803,7 +829,6 @@
         }
 
         function renderResults(query) {
-            if (isLocked) return; // KILL-SWITCH: No rendering results in lock mode
             const terms = query.toLowerCase().split(' ').filter(t => t.length > 0);
             const filtered = allMetrics.filter(item => {
                 const searchStr = `${item.server.name} ${item.server.host} ${item.id}`.toLowerCase();
@@ -842,7 +867,8 @@
 
         // --- UI Events ---
         inputEl.addEventListener('focus', () => {
-            renderResults('');
+            renderResults(inputEl.value);
+            inputEl.select(); // Auto-select for easy replacement
             listEl.classList.add('active');
             searchContainer.classList.add('active');
         });
@@ -865,6 +891,11 @@
                 updateOverlay();
             }
         });
+
+        listEl.addEventListener('wheel', (e) => {
+            // Stop propagation to prevent window/wrapper listeners from catching this
+            e.stopPropagation();
+        }, { passive: false });
 
         listEl.addEventListener('click', (e) => {
             const item = e.target.closest('.result-item');
@@ -1209,6 +1240,9 @@
 
         // --- Wheel Scale Support & Gauge Cycling ---
         mainWrapper.addEventListener('wheel', (e) => {
+            // Ignore if scrolling within the search results list
+            if (e.target.closest('.results-list')) return;
+
             // Prevent the entire dashboard/page from scrolling
             e.preventDefault();
 
