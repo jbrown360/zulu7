@@ -389,7 +389,17 @@ app.get('/api/snmp', (req, res) => {
                     return { oid: vb.oid, error: snmp.varbindError(vb) };
                 } else {
                     if (Buffer.isBuffer(value)) {
-                        value = value.toString();
+                        if (value.length > 0 && value.length <= 8) {
+                            // Buffers of 1-8 bytes are often encoded integers (like Counter64)
+                            // that net-snmp doesn't automatically decode. 
+                            try {
+                                value = BigInt('0x' + value.toString('hex')).toString();
+                            } catch (e) {
+                                value = value.toString();
+                            }
+                        } else {
+                            value = value.toString();
+                        }
                     }
                     return { oid: vb.oid, value: value };
                 }
