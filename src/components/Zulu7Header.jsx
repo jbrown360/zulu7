@@ -291,7 +291,37 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
 
     return (
         <>
-            <div ref={headerRef} className="fixed top-0 left-0 right-0 h-14 z-[100] flex items-center justify-between px-6 bg-black/60 backdrop-blur-md border-b border-white/5 shadow-2xl">
+            <div
+                ref={headerRef}
+                className="fixed top-0 left-0 right-0 h-14 z-[100] flex items-center justify-between px-6 bg-black/60 backdrop-blur-md border-b border-white/5 shadow-2xl"
+                onWheel={(e) => {
+                    // Ignore if we're scrolling inside a dropdown or other scrollable territory
+                    if (e.target.closest('.overflow-y-auto') || e.target.closest('.no-scrollbar')) {
+                        // Special case: if it's the specific no-scrollbar workspace list, we DO want the switch
+                        if (!e.target.closest('.workspace-tabs-list')) return;
+                    }
+
+                    const now = Date.now();
+                    if (now - lastWheelTime.current < 150) return;
+                    lastWheelTime.current = now;
+
+                    const direction = e.deltaY > 0 ? 1 : -1;
+                    let nextIdx = (activeWorkspace + direction + totalWorkspaces) % totalWorkspaces;
+
+                    let attempts = 0;
+                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
+                        nextIdx = (nextIdx + direction + totalWorkspaces) % totalWorkspaces;
+                        attempts++;
+                    }
+
+                    if (nextIdx !== activeWorkspace) {
+                        setActiveWorkspace(nextIdx);
+                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
+                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+                        }
+                    }
+                }}
+            >
                 {/* Left Side: Workspaces Only */}
                 <div ref={leftSideRef} className="flex items-center">
                     {/* Rotation Toggle (Floating Left) */}
@@ -325,36 +355,13 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                         <div className="flex items-center bg-white/5 rounded-none p-1 border border-white/5">
                             {/* Scrollable List */}
                             <div
-                                className="flex items-center space-x-1 overflow-x-auto max-w-[140px] md:max-w-[220px] no-scrollbar scroll-smooth"
+                                className="workspace-tabs-list flex items-center space-x-1 overflow-x-auto max-w-[140px] md:max-w-[220px] no-scrollbar scroll-smooth"
                                 ref={(el) => {
                                     if (el && activeWorkspace >= 0) {
                                         // Simple auto-scroll to keep active in view
                                         const activeBtn = el.children[activeWorkspace];
                                         if (activeBtn) {
                                             activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                                        }
-                                    }
-                                }}
-                                onWheel={(e) => {
-                                    const now = Date.now();
-                                    if (now - lastWheelTime.current < 150) return;
-                                    lastWheelTime.current = now;
-
-                                    // Identify direction
-                                    const direction = e.deltaY > 0 ? 1 : -1;
-                                    let nextIdx = (activeWorkspace + direction + totalWorkspaces) % totalWorkspaces;
-
-                                    // Find next enabled workspace in that direction
-                                    let attempts = 0;
-                                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
-                                        nextIdx = (nextIdx + direction + totalWorkspaces) % totalWorkspaces;
-                                        attempts++;
-                                    }
-
-                                    if (nextIdx !== activeWorkspace) {
-                                        setActiveWorkspace(nextIdx);
-                                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
-                                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
                                         }
                                     }
                                 }}

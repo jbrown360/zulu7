@@ -11,6 +11,108 @@ import net from 'node:net'
 import os from 'node:os'
 import snmp from 'net-snmp'
 
+// --- SNMP Persistence Manager ---
+const SNMP_HISTORY_DIR = path.resolve('snmp_history');
+if (!fs.existsSync(SNMP_HISTORY_DIR)) fs.mkdirSync(SNMP_HISTORY_DIR);
+
+class SnmpManager {
+  constructor() {
+    this.targets = new Map(); // signature -> { host, port, community, oid, version, lastActive, pollInterval }
+    this.pollTimer = setInterval(() => this.pollAll(), 60000); // Global poll every minute
+  }
+
+  getSignature(host, port, community, oid, version) {
+    return Buffer.from(`${host}:${port}:${community}:${oid}:${version}`).toString('base64').replace(/[/+=]/g, '_');
+  }
+
+  register(host, port, community, oid, version) {
+    const sig = this.getSignature(host, port, community, oid, version);
+    if (!this.targets.has(sig)) {
+      this.targets.set(sig, {
+        host, port, community, oid, version,
+        lastActive: Date.now()
+      });
+      console.log(`[SnmpManager] Registered new target: ${host} ${oid}`);
+      // Immediate poll on first registration
+      this.pollTarget(sig);
+    } else {
+      this.targets.get(sig).lastActive = Date.now();
+    }
+    return sig;
+  }
+
+  async pollAll() {
+    const now = Date.now();
+    for (const [sig, target] of this.targets.entries()) {
+      // Auto-cleanup: stop polling if inactive for > 5 minutes
+      if (now - target.lastActive > 5 * 60 * 1000) {
+        console.log(`[SnmpManager] Target expired (inactive): ${target.host} ${target.oid}`);
+        this.targets.delete(sig);
+        continue;
+      }
+      this.pollTarget(sig);
+    }
+  }
+
+  async pollTarget(sig) {
+    const target = this.targets.get(sig);
+    if (!target) return;
+
+    const { host, port, community, oid, version } = target;
+    const cleanOid = oid.startsWith('.') ? oid.slice(1) : oid;
+    const session = snmp.createSession(host, community || 'public', {
+      port: parseInt(port) || 161,
+      retries: 1,
+      timeout: 5000,
+      version: parseInt(version) || snmp.Version2c
+    });
+
+    session.get([cleanOid], (error, varbinds) => {
+      if (!error && varbinds && varbinds[0]) {
+        let value = varbinds[0].value;
+        if (Buffer.isBuffer(value)) {
+          try { value = BigInt('0x' + value.toString('hex')).toString(); }
+          catch (e) { value = value.toString(); }
+        }
+        this.savePoint(sig, value);
+      }
+      session.close();
+    });
+  }
+
+  savePoint(sig, value) {
+    const filePath = path.join(SNMP_HISTORY_DIR, `${sig}.json`);
+    let history = [];
+    try {
+      if (fs.existsSync(filePath)) {
+        history = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      }
+    } catch (e) { }
+
+    const now = Date.now();
+    history.push([now, value]);
+
+    // 7-day retention (60 * 60 * 24 * 7 * 1000)
+    const SEVEN_DAYS_MS = 604800000;
+    const cutoff = now - SEVEN_DAYS_MS;
+    history = history.filter(p => p[0] > cutoff);
+
+    fs.writeFileSync(filePath, JSON.stringify(history));
+  }
+
+  getHistory(sig) {
+    const filePath = path.join(SNMP_HISTORY_DIR, `${sig}.json`);
+    if (fs.existsSync(filePath)) {
+      try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      } catch (e) { return []; }
+    }
+    return [];
+  }
+}
+
+const snmpManager = new SnmpManager();
+
 const agent = new https.Agent({
   keepAlive: true,
   maxSockets: 100,
@@ -650,46 +752,15 @@ export default defineConfig({
               return;
             }
 
-            const cleanOid = oid.startsWith('.') ? oid.slice(1) : oid;
-            const snmpVersion = version !== undefined ? parseInt(version) : snmp.Version2c;
+            // Register/Heartbeat and return full history
+            const sig = snmpManager.register(host, port, community, oid, version);
+            const history = snmpManager.getHistory(sig);
 
-            const session = snmp.createSession(host, community || 'public', {
-              port: parseInt(port) || 161,
-              retries: 1,
-              timeout: 5000,
-              version: snmpVersion
-            });
-
-            session.get([cleanOid], (error, varbinds) => {
-              if (error) {
-                console.error(`[SNMP] Error fetching ${oid} from ${host}:`, error);
-                res.statusCode = 500;
-                res.end(JSON.stringify({ error: error.toString() }));
-              } else {
-                const results = varbinds.map(vb => {
-                  let value = vb.value;
-                  if (snmp.isVarbindError(vb)) {
-                    return { oid: vb.oid, error: snmp.varbindError(vb) };
-                  } else {
-                    if (Buffer.isBuffer(value)) {
-                      if (value.length > 0 && value.length <= 8) {
-                        try {
-                          value = BigInt('0x' + value.toString('hex')).toString();
-                        } catch (e) {
-                          value = value.toString();
-                        }
-                      } else {
-                        value = value.toString();
-                      }
-                    }
-                    return { oid: vb.oid, value: value };
-                  }
-                });
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(results));
-              }
-              session.close();
-            });
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({
+              signature: sig,
+              history: history
+            }));
           } else if (req.method === 'GET' && req.url.startsWith('/api/video-proxy')) {
             const urlObj = new URL(req.url, `http://${req.headers.host}`);
             const id = urlObj.searchParams.get('id');

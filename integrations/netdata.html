@@ -579,6 +579,7 @@
         <div class="chart-header">
             <div class="header-controls">
                 <select id="time-window" class="time-select" title="Select Time Range">
+                    <option value="-60">1m</option>
                     <option value="-300">5m</option>
                     <option value="-900">15m</option>
                     <option value="-1800">30m</option>
@@ -634,9 +635,9 @@
             { name: "Dev-VM", host: "http://192.168.1.111:19999" } // Template
         ];
 
-        const REFRESH_MS = 30000;
+        const REFRESH_MS = 60000;
         const STORAGE_KEY = `zulu7_multi_nd_${window.name || 'default'}`;
-        const TIME_PERIODS = ["-300", "-900", "-1800", "-3600", "-86400", "-259200", "-604800"];
+        const TIME_PERIODS = ["-60", "-300", "-900", "-1800", "-3600", "-86400", "-259200", "-604800"];
 
         // --- Bulletproof User Interaction Capture ---
         // We use capturing phase to catch the event before any library (like Dygraphs) can stop it.
@@ -787,7 +788,7 @@
             host: NETDATA_SERVERS[0].host,
             name: NETDATA_SERVERS[0].name,
             chartId: "system.load",
-            after: "-300",
+            after: "-60",
             graphType: "area",
             gaugeDimensionIndex: 0
         };
@@ -1171,7 +1172,8 @@
                 errorEl.style.display = 'flex';
                 errorEl.innerHTML = `${selection.name}: ${err.message}`;
             } finally {
-                fetchInterval = setTimeout(fetchData, REFRESH_MS);
+                const currentInterval = selection.graphType === 'gauge' ? 15000 : REFRESH_MS;
+                fetchInterval = setTimeout(fetchData, currentInterval);
             }
         }
 
