@@ -53,10 +53,11 @@
             left: 0;
             right: 0;
             display: flex;
+            flex-wrap: wrap;
             padding: 8px 12px;
             padding-right: 48px;
             /* Avoid dashboard refresh icon */
-            gap: 12px;
+            gap: 8px 12px;
             z-index: 100;
             border-bottom: 1px solid var(--border-color);
             background: rgba(13, 13, 18, 0.45) !important;
@@ -75,7 +76,7 @@
             padding: 2px 4px;
             outline: none;
             transition: all 0.3s ease;
-            width: 100px;
+            width: 90px;
         }
 
         .setup-input:focus {
@@ -85,6 +86,7 @@
 
         .setup-input.oid {
             width: 130px;
+            max-width: 80%;
         }
 
         .setup-input.port {
@@ -184,7 +186,8 @@
             justify-content: center;
             pointer-events: none;
             z-index: 0;
-            opacity: 0;
+            opacity: 1;
+            /* Permanent by default */
             transition: opacity 0.4s ease;
             user-select: none;
             text-align: center;
@@ -198,27 +201,34 @@
             letter-spacing: 1px;
         }
 
-        .watermark-sub {
-            font-size: clamp(0.6rem, 3vw, 2.2rem);
-            font-weight: 800;
-            color: rgba(255, 255, 255, 0.04);
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-        }
-
-        .watermark-main {
-            font-size: clamp(1rem, 8vw, 8rem);
+        .watermark-top {
+            font-size: clamp(0.5rem, 8vw, 15rem);
             font-weight: 900;
-            color: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.08);
             text-transform: uppercase;
             letter-spacing: -0.05em;
             line-height: 0.8;
+            max-width: 95%;
+            white-space: nowrap;
+            overflow: visible;
+            text-align: center;
         }
 
-        .chart-wrapper:hover .chart-watermark,
-        body.is-fullscreen .chart-watermark {
-            opacity: 1;
+        .watermark-bottom {
+            font-size: clamp(0.4rem, 2.5vw, 8rem);
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.08);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            line-height: 1.1;
+            max-width: 95%;
+            white-space: nowrap;
+            overflow: visible;
+            text-align: center;
+            margin-top: 4px;
         }
+
+        /* Removed hover requirement - now permanent */
 
         /* Locked / Restricted Mode */
         body.is-locked .chart-header {
@@ -249,8 +259,8 @@
 
         <div id="chart-values" class="chart-values"></div>
         <div class="chart-watermark">
-            <div id="watermark-sub" class="watermark-sub">Snmp POLL</div>
-            <div id="watermark-main" class="watermark-main">ZULU7</div>
+            <div id="watermark-top" class="watermark-top">SNMP DEVICE</div>
+            <div id="watermark-bottom" class="watermark-bottom">.1.3.6.1.2.1.1.1.0</div>
         </div>
 
         <div id="chart-div"></div>
@@ -284,8 +294,8 @@
         const verEl = document.getElementById('version');
         const oidEl = document.getElementById('oid');
         const labelEl = document.getElementById('label');
-        const watermarkMain = document.getElementById('watermark-main');
-        const watermarkSub = document.getElementById('watermark-sub');
+        const watermarkTop = document.getElementById('watermark-top');
+        const watermarkBottom = document.getElementById('watermark-bottom');
         const statusEl = document.getElementById('status');
 
         // Apply Settings to UI
@@ -295,8 +305,8 @@
         verEl.value = settings.version !== undefined ? settings.version : 1;
         oidEl.value = settings.oid;
         labelEl.value = settings.label;
-        watermarkMain.textContent = settings.label; // No upper case
-        watermarkSub.textContent = settings.oid;
+        watermarkTop.textContent = settings.label;
+        watermarkBottom.textContent = settings.oid;
 
         // Check for Locked Mode
         const urlParams = new URLSearchParams(window.location.search);
@@ -322,8 +332,8 @@
                 viewWindowMs: settings.viewWindowMs
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-            watermarkMain.textContent = settings.label;
-            watermarkSub.textContent = settings.oid;
+            watermarkTop.textContent = settings.label;
+            watermarkBottom.textContent = settings.oid;
 
             // If connection params changed, clear data and restart
             if (forceReset || oldHost !== settings.host || oldPort !== settings.port ||
@@ -343,7 +353,7 @@
 
         // Real-time label reactivity
         labelEl.addEventListener('input', () => {
-            watermarkMain.textContent = labelEl.value;
+            watermarkTop.textContent = labelEl.value;
             if (g) {
                 g.updateOptions({ labels: ["Time", labelEl.value] });
             }
