@@ -9,6 +9,7 @@ import crypto from 'node:crypto'
 import { exec } from 'node:child_process'
 import net from 'node:net'
 import os from 'node:os'
+import snmp from 'net-snmp'
 
 const agent = new https.Agent({
   keepAlive: true,
@@ -635,6 +636,60 @@ export default defineConfig({
               res.statusCode = 500;
               res.end(JSON.stringify({ error: e.message }));
             }
+          } else if (req.method === 'GET' && req.url.startsWith('/api/snmp')) {
+            const urlObj = new URL(req.url, `http://${req.headers.host}`);
+            const host = urlObj.searchParams.get('host');
+            const port = urlObj.searchParams.get('port');
+            const community = urlObj.searchParams.get('community');
+            const oid = urlObj.searchParams.get('oid');
+            const version = urlObj.searchParams.get('version');
+
+            if (!host || !oid) {
+              res.statusCode = 400;
+              res.end(JSON.stringify({ error: 'Missing parameters' }));
+              return;
+            }
+
+            const cleanOid = oid.startsWith('.') ? oid.slice(1) : oid;
+            const snmpVersion = version !== undefined ? parseInt(version) : snmp.Version2c;
+
+            const session = snmp.createSession(host, community || 'public', {
+              port: parseInt(port) || 161,
+              retries: 1,
+              timeout: 5000,
+              version: snmpVersion
+            });
+
+            session.get([cleanOid], (error, varbinds) => {
+              if (error) {
+                console.error(`[SNMP] Error fetching ${oid} from ${host}:`, error);
+                res.statusCode = 500;
+                res.end(JSON.stringify({ error: error.toString() }));
+              } else {
+                const results = varbinds.map(vb => {
+                  let value = vb.value;
+                  if (snmp.isVarbindError(vb)) {
+                    return { oid: vb.oid, error: snmp.varbindError(vb) };
+                  } else {
+                    if (Buffer.isBuffer(value)) {
+                      if (value.length > 0 && value.length <= 8) {
+                        try {
+                          value = BigInt('0x' + value.toString('hex')).toString();
+                        } catch (e) {
+                          value = value.toString();
+                        }
+                      } else {
+                        value = value.toString();
+                      }
+                    }
+                    return { oid: vb.oid, value: value };
+                  }
+                });
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify(results));
+              }
+              session.close();
+            });
           } else if (req.method === 'GET' && req.url.startsWith('/api/video-proxy')) {
             const urlObj = new URL(req.url, `http://${req.headers.host}`);
             const id = urlObj.searchParams.get('id');

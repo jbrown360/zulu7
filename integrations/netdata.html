@@ -41,7 +41,7 @@
             flex-direction: column;
             position: relative;
             overflow: hidden;
-            cursor: crosshair;
+            cursor: pointer;
         }
 
         /* --- Searchable Header --- */
@@ -472,6 +472,12 @@
             justify-content: center;
             align-items: center;
             cursor: pointer;
+            pointer-events: none;
+            /* Allow hovering graph behind */
+        }
+
+        .value-display.hybrid-bg {
+            background: transparent;
         }
 
         .value-table {
@@ -572,15 +578,7 @@
     <div class="chart-wrapper">
         <div class="chart-header">
             <div class="header-controls">
-                <select id="graph-type" class="time-select">
-                    <option value="area">Area</option>
-                    <option value="bar">Bar</option>
-                    <option value="gauge">Gauge</option>
-                    <option value="stacked">Stacked</option>
-                    <option value="value">Value</option>
-                </select>
-                <span id="time-label" class="time-label"></span>
-                <select id="time-window" class="time-select">
+                <select id="time-window" class="time-select" title="Select Time Range">
                     <option value="-300">5m</option>
                     <option value="-900">15m</option>
                     <option value="-1800">30m</option>
@@ -589,13 +587,22 @@
                     <option value="-259200">3d</option>
                     <option value="-604800">7d</option>
                 </select>
+                <select id="graph-type" class="time-select" title="Select Chart Type">
+                    <option value="area">Area</option>
+                    <option value="bar">Bar</option>
+                    <option value="gauge">Gauge</option>
+                    <option value="stacked">Stacked</option>
+                    <option value="value">Value</option>
+                </select>
+                <span id="time-label" class="time-label"></span>
                 <div id="search-container" class="search-container">
                     <div id="search-overlay" class="search-overlay">
-                        <span id="overlay-server" class="input-server-label"></span>
+                        <span id="overlay-server" class="input-server-label" title="View Server"></span>
                         <span id="overlay-chart" class="input-chart-label"></span>
                     </div>
                     <input type="text" id="search-input" class="search-input"
-                        placeholder="Search servers or metrics (e.g. Lab CPU)..." autocomplete="off">
+                        placeholder="Search servers or metrics (e.g. Lab CPU)..." autocomplete="off"
+                        title="Search Sensors and Metrics">
                     <ul id="results-list" class="results-list"></ul>
                 </div>
             </div>
@@ -606,7 +613,7 @@
             <div id="watermark-server" class="watermark-server"></div>
             <div id="watermark-chart" class="watermark-chart"></div>
         </div>
-        <div id="value-display" class="value-display" style="display: none;"></div>
+        <div id="value-display" class="value-display"></div>
         <div id="gauge-container" class="gauge-container" style="display: none;"></div>
         <div id="chart-div"></div>
         <div id="crosshair-v" class="crosshair"></div>
@@ -806,9 +813,10 @@
         const overlayServer = document.getElementById('overlay-server');
 
         overlayServer.addEventListener('click', (e) => {
-            if (isLocked) return;
             e.stopPropagation();
-            window.open(selection.host, '_blank');
+            if (selection.host) {
+                window.open(selection.host, '_blank');
+            }
         });
 
         // Fetch metrics from all servers
@@ -927,22 +935,27 @@
             const crosshairV = document.getElementById('crosshair-v');
             const crosshairH = document.getElementById('crosshair-h');
             const watermark = document.getElementById('chart-watermark');
-            const watermarkServer = document.getElementById('watermark-server');
 
-            // Hide everything first
+            // Reset defaults
             valueDisplay.style.display = 'none';
             gaugeContainer.style.display = 'none';
             chartDiv.style.visibility = 'hidden';
+            chartDiv.style.opacity = '1';
             crosshairV.style.display = 'none';
             crosshairH.style.display = 'none';
-            watermark.style.display = 'none';
+            watermark.style.display = 'flex';
+            watermark.classList.remove('large');
             timeEl.style.display = 'none';
+            document.getElementById('watermark-chart').style.display = 'block';
 
             if (selection.graphType === 'value') {
                 valueDisplay.style.display = 'flex';
                 watermark.style.display = 'flex';
-                watermark.classList.add('large');
+                watermark.classList.remove('large');
                 document.getElementById('watermark-chart').style.display = 'none';
+                chartDiv.style.visibility = 'visible';
+                chartDiv.style.opacity = '0.35';
+                timeEl.style.display = 'block';
             } else if (selection.graphType === 'gauge') {
                 gaugeContainer.style.display = 'flex';
                 watermark.style.display = 'flex';
@@ -950,14 +963,11 @@
                 document.getElementById('watermark-chart').style.display = 'none';
             } else {
                 chartDiv.style.visibility = 'visible';
-                watermark.style.display = 'flex';
-                watermark.classList.remove('large');
                 document.getElementById('watermark-chart').style.display = 'block';
                 crosshairV.style.display = 'block';
                 crosshairH.style.display = 'block';
                 timeEl.style.display = 'block';
             }
-
 
             if (g) { g.destroy(); g = null; }
         }
@@ -983,7 +993,7 @@
             fetchData();
         });
 
-        // --- Data Fetching ---
+
         async function fetchData() {
             if (fetchInterval) clearTimeout(fetchInterval);
 
@@ -1034,9 +1044,6 @@
                     }).join('');
 
                     valueDisplay.innerHTML = `<table class="value-table">${tableRows}</table>`;
-
-                    if (g) { g.destroy(); g = null; }
-                    return;
                 }
 
                 // --- Gauge Mode Update ---
@@ -1072,10 +1079,10 @@
                         labels: labels,
                         strokeWidth: selection.graphType === 'bar' ? 1 : 2,
                         colors: ["#344E41", "#4A6274", "#616F39", "#526D82", "#635C51", "#7D7461", "#A64B2A", "#8E4D40", "#454B54", "#3E432E"],
-                        fillGraph: selection.graphType === 'area' || selection.graphType === 'stacked',
+                        fillGraph: selection.graphType === 'area' || selection.graphType === 'stacked' || selection.graphType === 'value',
                         stackedGraph: selection.graphType === 'stacked' || selection.graphType === 'bar',
                         plotter: selection.graphType === 'bar' ? barPlotter : null,
-                        fillAlpha: (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.35 : 0.08,
+                        fillAlpha: (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.35 : (selection.graphType === 'value' ? 0.1 : 0.08),
                         drawXAxis: true,
                         drawYAxis: true,
                         gridLineColor: 'rgba(255,255,255,0.05)',
@@ -1124,7 +1131,7 @@
                             }
                         },
                         legendFormatter: function (data) {
-                            if (data.x === undefined) return '';
+                            if (data.x === undefined || selection.graphType === 'value') return '';
                             // To show real time, we need to map X back to the timestamp
                             const targetTs = (currentNewestTs + data.x) * 1000;
                             const timeStr = new Date(targetTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -1139,7 +1146,11 @@
                                 <div class="chart-value-item" style="color: #888; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 4px; padding-bottom: 4px; font-size: 0.9rem;">${timeStr}</div>
                                 ${values}
                             `;
-                        }
+                        },
+                        drawXAxis: selection.graphType !== 'value',
+                        drawYAxis: selection.graphType !== 'value',
+                        gridLineColor: selection.graphType === 'value' ? 'transparent' : 'rgba(255,255,255,0.05)',
+                        highlightCircleSize: selection.graphType === 'value' ? 0 : 6
                     });
                 } else {
                     g.updateOptions({
@@ -1147,11 +1158,12 @@
                         'labels': labels,
                         'dateWindow': [-maxOffset, 0],
                         'yAxisLabelWidth': 32,
-                        'fillGraph': selection.graphType === 'area' || selection.graphType === 'stacked',
-                        'stackedGraph': selection.graphType === 'stacked' || selection.graphType === 'bar',
-                        'plotter': selection.graphType === 'bar' ? barPlotter : null,
-                        'strokeWidth': selection.graphType === 'bar' ? 1 : 2,
-                        'fillAlpha': (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.15 : 0.08
+                        'fillGraph': selection.graphType === 'area' || selection.graphType === 'stacked' || selection.graphType === 'value',
+                        'fillAlpha': (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.35 : (selection.graphType === 'value' ? 0.1 : 0.08),
+                        'drawXAxis': selection.graphType !== 'value',
+                        'drawYAxis': selection.graphType !== 'value',
+                        'gridLineColor': selection.graphType === 'value' ? 'transparent' : 'rgba(255,255,255,0.05)',
+                        'highlightCircleSize': selection.graphType === 'value' ? 0 : 6
                     });
                 }
             } catch (err) {
