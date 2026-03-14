@@ -21,7 +21,7 @@ apt-get upgrade -y
 
 # 2. Install Docker & Docker Compose
 echo ""
-echo "[2/4] Installing Docker and Docker Compose..."
+echo "[2/4] Installing Docker and Git..."
 # Check if docker is already installed
 if ! command -v docker &> /dev/null; then
     curl -fsSL https://get.docker.com -o get-docker.sh
@@ -31,8 +31,8 @@ else
     echo "Docker is already installed. Skipping installation."
 fi
 
-# Ensure docker compose plugin is installed
-apt-get install -y docker-compose-plugin git
+# Ensure git is installed (get-docker.sh handles docker-compose-plugin)
+apt-get install -y git
 
 # Enable and start Docker service
 systemctl enable docker
