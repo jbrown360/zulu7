@@ -6,8 +6,7 @@
 set -e
 
 # Configuration
-REPO_URL="https://github.com/jbrown360/zulu7.git"
-INSTALL_DIR="/opt/zulu7"
+# Run directly inside the rsynced zulu7 directory
 
 echo "=================================================="
 echo " Starting Zulu7 DigitalOcean Droplet Deployment   "
@@ -32,28 +31,17 @@ else
     echo "Docker is already installed. Skipping installation."
 fi
 
-# Ensure git is installed (get-docker.sh handles docker-compose-plugin)
-apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git
-
 # Enable and start Docker service
 systemctl enable docker
 systemctl start docker
 
-# 3. Clone Repository
+# 3. Setup Directories
 echo ""
-echo "[3/4] Setting up Zulu7 application..."
-if [ -d "$INSTALL_DIR" ]; then
-    echo "Directory $INSTALL_DIR already exists. Pulling latest changes..."
-    cd $INSTALL_DIR
-    git pull
-else
-    echo "Cloning repository to $INSTALL_DIR..."
-    git clone $REPO_URL $INSTALL_DIR
-    cd $INSTALL_DIR
-fi
+echo "[3/4] Setting up localized Zulu7 volumes..."
 
 # Ensure necessary directories and files exist for docker volumes
 mkdir -p published_configs
+
 # Create a default go2rtc config if it doesn't exist to prevent Docker mount errors
 if [ ! -f "go2rtc.yaml" ]; then
     if [ -f "go2rtc.example.yaml" ]; then
@@ -98,5 +86,5 @@ echo "Streamer UI (Go2RTC) is accessible at:"
 echo "http://$(curl -s http://checkip.amazonaws.com):1984"
 echo ""
 echo "To view logs, run:"
-echo "cd $INSTALL_DIR && docker compose logs -f"
+echo "docker compose logs -f"
 echo "=================================================="
