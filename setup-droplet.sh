@@ -65,6 +65,22 @@ if [ ! -f "go2rtc.yaml" ]; then
     fi
 fi
 
+# Ensure sufficient memory for Docker build (Vite needs ~1.5GB RAM)
+echo ""
+echo "[*] Checking system memory and swap..."
+if [ $(free -m | awk '/^Swap:/ {print $2}') -eq 0 ]; then
+    echo "No swap space detected. Creating a 2GB swap file to prevent build crashes..."
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    # Persist swap across reboots
+    echo "/swapfile none swap sw 0 0" >> /etc/fstab
+    echo "Swap space created and enabled. Memory check passed."
+else
+    echo "Swap space already exists. Memory check passed."
+fi
+
 # 4. Build and Start Services
 echo ""
 echo "[4/4] Building and starting Docker containers..."
