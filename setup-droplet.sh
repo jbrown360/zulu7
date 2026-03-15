@@ -16,8 +16,9 @@ echo "=================================================="
 # 1. System Update
 echo ""
 echo "[1/4] Updating system packages..."
+export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get upgrade -y
+apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y
 
 # 2. Install Docker & Docker Compose
 echo ""
@@ -32,7 +33,7 @@ else
 fi
 
 # Ensure git is installed (get-docker.sh handles docker-compose-plugin)
-apt-get install -y git
+apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" install -y git
 
 # Enable and start Docker service
 systemctl enable docker
