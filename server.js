@@ -450,7 +450,6 @@ const go2rtcProxy = createProxyMiddleware({
     ws: true,
     logger: console
 });
-app.use(['/api/streams', '/stream.html', '/video-stream.js', '/video-rtc.js', '/api/ws'], go2rtcProxy);
 
 app.use(cors());
 
@@ -1454,6 +1453,20 @@ app.use('/integrations', async (req, res, next) => {
 // --- INSTAGRAM INTEGRATION ---
 
 // ------------------------------
+
+// Fallback proxy for unmatched /api requests (Go2RTC backend routing)
+// Placed at the end so local app.get routes take precedence
+app.use((req, res, next) => {
+    const p = req.path;
+    if (p.startsWith('/api/') ||
+        p.startsWith('/stream.html') ||
+        p.startsWith('/video-stream.js') ||
+        p.startsWith('/video-rtc.js') ||
+        p.startsWith('/api/ws')) {
+        return go2rtcProxy(req, res, next);
+    }
+    next();
+});
 
 // Serve static compiled UI correctly
 app.use(express.static(path.join(__dirname, 'dist')));
