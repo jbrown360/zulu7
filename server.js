@@ -1426,7 +1426,7 @@ app.use('/integrations', async (req, res, next) => {
         const isLocked = await fs.access(lockedPath).then(() => true).catch(() => false);
 
         if (isLocked && req.path !== '/.locked' && path.extname(req.path) === '.html') {
-            const filePath = path.join(__dirname, 'integrations', req.path);
+            const filePath = path.join(__dirname, 'integrations', decodeURIComponent(req.path));
             try {
                 const content = await fs.readFile(filePath, 'utf-8');
                 // Obfuscate all alphanumeric characters and some symbols
@@ -1443,7 +1443,7 @@ app.use('/integrations', async (req, res, next) => {
     }
 
     // Explicitly check if file exists in integrations directory to avoid SPA fallback
-    const filePath = path.join(__dirname, 'integrations', req.path);
+    const filePath = path.join(__dirname, 'integrations', decodeURIComponent(req.path));
     try {
         await fs.access(filePath);
         next();
