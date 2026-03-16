@@ -11,6 +11,7 @@ import Zulu7Header from './Zulu7Header';
 import { X, GripHorizontal, RefreshCw, CloudSun, Video, Rss, TrendingUp, Minimize, Maximize, Cast, SlidersHorizontal, Image, Activity, Zap, Plug, AppWindow } from 'lucide-react';
 
 import CalendarOverlay from './CalendarOverlay';
+import IntegrationFullscreenEditor from './IntegrationFullscreenEditor';
 
 const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersistence = false, initialWorkspaces = null, initialActiveWorkspace, isRestricted = false }) => {
     // State now holds ALL workspaces
@@ -42,6 +43,8 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
     const [mounted, setMounted] = useState(false);
     const [isManualFullScreen, setIsManualFullScreen] = useState(false);
     const [alertStates, setAlertStates] = useState({}); // { widgetId: { status, isVibrating } }
+    const [isIntegrationEditorOpen, setIsIntegrationEditorOpen] = useState(false);
+    const [activeIntegrationFile, setActiveIntegrationFile] = useState(null);
 
     const [history, setHistory] = useState([]); // Stack of workspace states
 
@@ -792,11 +795,11 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
             const layout = targetWS?.layout || [];
 
             const maxY = layout.length > 0 ? Math.max(...layout.map(l => l.y + l.h)) : 0;
-            // Ticker/Service: 2x1, Icon: 1x1, Iframe-like/RSS: 6x4, Weather: 4x4, Media: 3x5, Camera: 3x2, Others: 12x8
-            const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration'].includes(type);
+            // Ticker/Service: 2x1, Icon: 1x1, Iframe-like/RSS/HDHomeRun: 6x4, Weather: 4x4, Media: 3x5, Camera: 3x2, Others: 12x8
+            const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration', 'hdhomerun'].includes(type);
             const is2x1 = ['ticker', 'service'].includes(type);
-            const defaultW = is2x1 ? 2 : type === 'icon' ? 1 : type === 'weather' ? 4 : (type === 'media' || type === 'camera') ? 3 : isIframeLike ? 6 : 12;
-            const defaultH = is2x1 ? 1 : type === 'icon' ? 1 : type === 'weather' ? 4 : type === 'media' ? 5 : type === 'camera' ? 2 : isIframeLike ? 4 : 8;
+            const defaultW = is2x1 ? 2 : type === 'icon' ? 1 : type === 'weather' ? 4 : (type === 'media' || type === 'camera') ? 3 : (type === 'movie-posters' || type === 'movie-poster') ? 6 : isIframeLike ? 6 : 12;
+            const defaultH = is2x1 ? 1 : type === 'icon' ? 1 : type === 'weather' ? 4 : type === 'media' ? 5 : type === 'camera' ? 2 : (type === 'movie-posters' || type === 'movie-poster') ? 9 : isIframeLike ? 4 : 8;
 
             const newWidget = {
                 id: newId,
@@ -1016,7 +1019,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                     {wsData.widgets.map(widget => (
                         <div
                             key={widget.id}
-                            className={`widget-item relative ${widget.isMaximized ? 'widget-maximized' : ''} ${(!isLocked && !isPreload) ? 'ring-1 ring-orange-500/50 z-50' : ''}`}
+                            className={`widget-item relative ${widget.isMaximized ? 'widget-maximized' : ''} ${(!isLocked && !isPreload) ? 'ring-1 ring-zulu-orange/50 z-50' : ''}`}
                             onMouseEnter={() => { isWidgetHovered.current = true; }}
                             onMouseLeave={() => { isWidgetHovered.current = false; }}
                         >
@@ -1033,10 +1036,15 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     ${alertStates[widget.id]?.isVibrating ? 'animate-shake' : ''}
                                     ${(!isLocked && !isPreload) ? 'edit-mode' : ''}
                                 `}
+                                style={{
+                                    animationDelay: alertStates[widget.id]?.isVibrating
+                                        ? `${(widget.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 400) / 1000}s`
+                                        : '0s'
+                                }}
                             >
                                 {/* Drag Handle - Constrained width to avoid covering buttons */}
                                 {!isLocked && !isPreload && (
-                                    <div className={`zulu-drag-handle absolute top-0 left-0 w-full h-10 px-3 z-40 cursor-grab active:cursor-grabbing flex items-center justify-start bg-black/60 backdrop-blur-md text-white/50 hover:text-orange-500 border-b border-white/5 transition-colors ${isDragging ? 'pointer-events-auto' : ''}`}>
+                                    <div className={`zulu-drag-handle absolute top-0 left-0 w-full h-10 px-3 z-40 cursor-grab active:cursor-grabbing flex items-center justify-start bg-black/60 backdrop-blur-md text-white/50 hover:text-zulu-orange border-b border-white/5 transition-colors ${isDragging ? 'pointer-events-auto' : ''}`}>
                                         {widget.type === 'iframe' ? (() => {
                                             const [rawUrl, displayName] = (widget.value || '').split('|');
                                             let title = displayName || "Widget";
@@ -1154,6 +1162,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     isRestricted={isRestricted}
                                     isDragging={isDragging}
                                     finnhubKey={settings?.finnhubKey}
+                                    tmdbKey={settings?.tmdbKey}
                                 />
                             </div>
 
@@ -1311,6 +1320,18 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                 streamApiKey={settings?.streamApiKey}
                 onOpenSettings={onOpenSettings}
                 settings={settings}
+                onUpdateSettings={onUpdateSettings}
+                onEditIntegration={(filename) => {
+                    setActiveIntegrationFile(filename);
+                    setIsIntegrationEditorOpen(true);
+                    setIsModalOpen(false); // Close parent modal
+                }}
+            />
+
+            <IntegrationFullscreenEditor
+                isOpen={isIntegrationEditorOpen}
+                filename={activeIntegrationFile}
+                onClose={() => setIsIntegrationEditorOpen(false)}
             />
 
             <CalendarOverlay

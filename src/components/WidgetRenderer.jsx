@@ -6,8 +6,10 @@ import IconWidget from './widgets/IconWidget';
 import WeatherWidget from './widgets/WeatherWidget';
 import MediaWidget from './widgets/MediaWidget';
 import ServiceWidget from './widgets/ServiceWidget';
+import MoviePosterWidget from './widgets/MoviePosterWidget';
+import HDHomeRunWidget from './widgets/HDHomeRunWidget';
 
-const WidgetRenderer = ({ widget, isLocked, finnhubKey }) => {
+const WidgetRenderer = ({ widget, isLocked, finnhubKey, tmdbKey }) => {
     // Use reloadVersion as part of the key to force re-mounting when reloaded
     // Note: The key is usually set by the parent map, but we can pass it down if needed for internal resets, 
     // though React handles the component remount if the parent key changes.
@@ -32,6 +34,17 @@ const WidgetRenderer = ({ widget, isLocked, finnhubKey }) => {
             return <MediaWidget widget={widget} isLocked={isLocked} />;
         case 'service':
             return <ServiceWidget widget={widget} isLocked={isLocked} />;
+        case 'movie-posters':
+        case 'movie-poster':
+            return (
+                <MoviePosterWidget
+                    widget={widget}
+                    isLocked={isLocked}
+                    tmdbKey={tmdbKey}
+                />
+            );
+        case 'hdhomerun':
+            return <HDHomeRunWidget data={widget} isLocked={isLocked} />;
         default:
             return <div>Unknown</div>;
     }
