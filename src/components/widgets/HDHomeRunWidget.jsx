@@ -1,15 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Monitor, RefreshCcw, Tv, AlertTriangle, WifiOff, Loader2, Play } from 'lucide-react';
+import { Monitor, RefreshCcw, Tv, AlertTriangle, WifiOff, Loader2, Play, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
-const HDHomeRunWidget = ({ data, isLocked }) => {
+const HDHomeRunWidget = ({ data, isLocked, isActive = true }) => {
     const [channels, setChannels] = useState([]);
     const [status, setStatus] = useState('initializing'); // initializing, loading, active, error
     const [errorMsg, setErrorMsg] = useState('');
     const [selectedChannel, setSelectedChannel] = useState(null);
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [streamUrl, setStreamUrl] = useState(null);
     const containerRef = useRef(null);
+    const iframeRef = useRef(null);
+    const activeStreamIdRef = useRef(null);
 
     const deviceIp = data.value; // The IP address saved from the modal
+
+    // 3. Handle Audio Muting Based on Active Workspace
+    const updateMuteState = () => {
+        if (!iframeRef.current) return;
+        try {
+            const iframe = iframeRef.current;
+            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+            if (doc) {
+                const mediaElements = doc.querySelectorAll('video, audio');
+                mediaElements.forEach(el => {
+                    el.muted = !isActive;
+                });
+            }
+        } catch (err) {
+            console.error("HDHomeRun Audio Mute Error:", err);
+        }
+    };
+
+    useEffect(() => {
+        updateMuteState();
+    }, [isActive]);
+
+    // Track unmount and cleanup stream to release tuner
+    useEffect(() => {
+        return () => {
+            if (activeStreamIdRef.current) {
+                fetch(`/api/streams?src=${activeStreamIdRef.current}`, { method: 'DELETE' }).catch(err => {
+                    console.error("Failed to delete stream on unmount:", err);
+                });
+            }
+        };
+    }, []);
 
     // 1. Fetch Channel Lineup on Mount or IP Change
     useEffect(() => {
@@ -64,12 +99,24 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
             const rawStreamUrl = channel.URL;
 
             // Name for the temporary go2rtc stream (clean up spaces/special chars)
-            const streamId = `hdhr_${channel.GuideNumber}`;
+            // We append a timestamp to ensure it's a dynamic stream, bypassing any hardcoded config in go2rtc.yaml
+            const streamId = `hdhr_${channel.GuideNumber}_${Date.now()}`;
+
+            // Clean up previous stream to release tuner lock
+            if (activeStreamIdRef.current && activeStreamIdRef.current !== streamId) {
+                try {
+                    await fetch(`/api/streams?src=${activeStreamIdRef.current}`, { method: 'DELETE' });
+                } catch (err) {
+                    console.error("Failed to release old stream:", err);
+                }
+            }
 
             // Configure the go2rtc transcode format: 
             // ffmpeg input: HTTP MPEG-TS
-            // ffmpeg output commands: copy video, AAC audio (safest for HLS/WebRTC)
-            const ffmpegUrl = `ffmpeg:${rawStreamUrl}#video=copy#audio=aac`;
+            // ffmpeg output commands: utilize patched "h264" transcode template defined in go2rtc.yaml
+            // This bypasses the default "-fflags nobuffer" bug which prevents FFmpeg from probing MPEG2 stream dimensions.
+            // We use `#audio=ac3_to_opus` to explicitly downmix 5.1 surround sound to WebRTC-compatible stereo Opus.
+            const ffmpegUrl = `ffmpeg:${rawStreamUrl}#video=h264#audio=ac3_to_opus`;
 
             // Call go2rtc local API to temporarily add this stream
             // /api/streams?name=<stream_name>&src=<ffmpeg_url>
@@ -81,9 +128,10 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
                 throw new Error("Failed to register stream with go2rtc proxy.");
             }
 
-            // Once registered, we can play it via the existing StreamPlayer utilizing WebRTC or HLS.
-            // We'll construct the local streamplayer URL:
+            // Once registered, we play it via StreamPlayer utilizing WebRTC.
+            // We use WebRTC with the custom Opus stereo downmix template to ensure perfect sync.
             const playerUrl = `/stream.html?src=${streamId}&mode=webrtc`;
+            activeStreamIdRef.current = streamId;
             setStreamUrl(playerUrl);
 
         } catch (err) {
@@ -101,10 +149,16 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
             className="w-full h-full bg-black relative flex flex-col group overflow-hidden border border-white/10"
         >
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 h-10 bg-gradient-to-b from-black/80 to-transparent z-20 flex items-center px-3 justify-between pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-black/90 to-transparent z-20 flex items-center px-3 justify-between pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 <div className="flex items-center space-x-2 text-white/90">
-                    <Tv size={14} className="text-orange-400" />
-                    <span className="text-xs font-medium tracking-wide">
+                    <button
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        className="pointer-events-auto p-1.5 -ml-1.5 hover:bg-white/10 rounded-md transition-colors text-gray-300 hover:text-white focus:outline-none"
+                        title={isSidebarOpen ? "Collapse Channel Guide" : "Expand Channel Guide"}
+                    >
+                        {isSidebarOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
+                    </button>
+                    <span className="text-xs font-medium tracking-wide drop-shadow-md">
                         {selectedChannel ? `CH ${selectedChannel.GuideNumber} - ${selectedChannel.GuideName}` : 'HDHomeRun'}
                     </span>
                 </div>
@@ -114,7 +168,10 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
             <div className="flex-1 flex flex-row h-full">
 
                 {/* Channel Guide Sidebar */}
-                <div className="w-1/3 max-w-[200px] h-full bg-[#111] border-r border-white/5 flex flex-col z-10">
+                <div
+                    className={`transition-all duration-300 ease-in-out h-full bg-[#111] flex flex-col z-10 overflow-hidden whitespace-nowrap ${isSidebarOpen ? 'w-1/3 max-w-[200px] min-w-[150px] border-r border-white/5 opacity-100' : 'w-0 border-r-0 opacity-0'
+                        }`}
+                >
                     <div className="p-2 border-b border-white/5 bg-black/40 text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center">
                         <Monitor size={10} className="mr-1.5" />
                         Channels
@@ -164,10 +221,12 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
                         </div>
                     ) : (
                         <iframe
+                            ref={iframeRef}
                             src={streamUrl}
                             className="w-full h-full border-none pointer-events-auto"
                             allow="autoplay; fullscreen; webrtc"
                             title="HDHomeRun Stream"
+                            onLoad={updateMuteState}
                         />
                     )}
                 </div>

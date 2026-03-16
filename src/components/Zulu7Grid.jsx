@@ -11,7 +11,6 @@ import Zulu7Header from './Zulu7Header';
 import { X, GripHorizontal, RefreshCw, CloudSun, Video, Rss, TrendingUp, Minimize, Maximize, Cast, SlidersHorizontal, Image, Activity, Zap, Plug, AppWindow } from 'lucide-react';
 
 import CalendarOverlay from './CalendarOverlay';
-import IntegrationFullscreenEditor from './IntegrationFullscreenEditor';
 
 const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersistence = false, initialWorkspaces = null, initialActiveWorkspace, isRestricted = false }) => {
     // State now holds ALL workspaces
@@ -43,8 +42,6 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
     const [mounted, setMounted] = useState(false);
     const [isManualFullScreen, setIsManualFullScreen] = useState(false);
     const [alertStates, setAlertStates] = useState({}); // { widgetId: { status, isVibrating } }
-    const [isIntegrationEditorOpen, setIsIntegrationEditorOpen] = useState(false);
-    const [activeIntegrationFile, setActiveIntegrationFile] = useState(null);
 
     const [history, setHistory] = useState([]); // Stack of workspace states
 
@@ -1159,6 +1156,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     key={widget.reloadVersion || 0}
                                     widget={widget}
                                     isLocked={isLocked}
+                                    isActive={!isPreload}
                                     isRestricted={isRestricted}
                                     isDragging={isDragging}
                                     finnhubKey={settings?.finnhubKey}
