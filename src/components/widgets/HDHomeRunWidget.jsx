@@ -72,9 +72,9 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
             const ffmpegUrl = `ffmpeg:${rawStreamUrl}#video=copy#audio=aac`;
 
             // Call go2rtc local API to temporarily add this stream
-            // /api/streams?dst=<stream_name>&src=<ffmpeg_url>
-            const addReq = await fetch(`/api/streams?dst=${streamId}&src=${encodeURIComponent(ffmpegUrl)}`, {
-                method: 'POST'
+            // /api/streams?name=<stream_name>&src=<ffmpeg_url>
+            const addReq = await fetch(`/api/streams?name=${streamId}&src=${encodeURIComponent(ffmpegUrl)}`, {
+                method: 'PUT'
             });
 
             if (!addReq.ok) {
