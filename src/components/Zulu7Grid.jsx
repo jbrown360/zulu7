@@ -1319,17 +1319,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                 onOpenSettings={onOpenSettings}
                 settings={settings}
                 onUpdateSettings={onUpdateSettings}
-                onEditIntegration={(filename) => {
-                    setActiveIntegrationFile(filename);
-                    setIsIntegrationEditorOpen(true);
-                    setIsModalOpen(false); // Close parent modal
-                }}
-            />
-
-            <IntegrationFullscreenEditor
-                isOpen={isIntegrationEditorOpen}
-                filename={activeIntegrationFile}
-                onClose={() => setIsIntegrationEditorOpen(false)}
+                onEditIntegration={() => { }}
             />
 
             <CalendarOverlay
