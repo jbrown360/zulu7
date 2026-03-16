@@ -347,8 +347,6 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                 { id: 'ticker', label: 'Ticker', icon: TrendingUp },
                                 { id: 'weather', label: 'Weather', icon: CloudSun },
                                 { id: 'media', label: 'Slide Show', icon: Image },
-                                { id: 'camera', label: 'Camera', icon: Video },
-                                { id: 'hdhomerun', label: 'HDHomeRun', icon: Monitor },
                                 { id: 'service', label: 'Health Check', icon: Activity },
                                 { id: 'integration', label: 'Integration', icon: Plug },
                             ].map((item) => (
@@ -386,38 +384,55 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                         type === 'icon' ? 'Target URL' :
                                             type === 'media' ? 'Slide Show Folder (Google Drive or HTTP/HTTPS)' :
                                                 type === 'service' ? 'Health Check URL / Hostname' :
-                                                    type === 'hdhomerun' ? 'HDHomeRun Local IP Address' :
+                                                    type === 'integration' && value === 'hdhomerun' ? 'HDHomeRun Local IP Address' :
                                                         type === 'integration' ? 'Selected Integration' :
                                                             (type === 'proxy') ? 'Target Website URL' : 'Source URL'}
                         </label>
 
-                        {/* Integration Dropdown */}
                         {type === 'integration' ? (
-                            <select
-                                value={value}
-                                onChange={(e) => {
-                                    const selectedValue = e.target.value;
-                                    setValue(selectedValue);
-                                    if (!extraValue.split('|')[0] || selectedValue.includes('Movie-Posters')) {
-                                        const cleanName = selectedValue.replace('.html', '').replace(/-/g, ' ');
-                                        const capitalized = cleanName.split(' ')
-                                            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                                            .join(' ');
-
-                                        if (selectedValue.includes('Movie-Posters')) {
-                                            setExtraValue(`all|30`);
+                            <div className="space-y-4">
+                                <select
+                                    value={value === 'hdhomerun' ? 'hdhomerun' : (value.includes('|') ? value : integrations.find(i => i.value.startsWith(value))?.value || value)}
+                                    onChange={(e) => {
+                                        const selectedValue = e.target.value;
+                                        if (selectedValue === 'hdhomerun') {
+                                            setValue('hdhomerun');
+                                            setExtraValue('');
                                         } else {
-                                            setExtraValue(`${capitalized}|`);
+                                            setValue(selectedValue);
+                                            if (!extraValue.split('|')[0] || selectedValue.includes('Movie-Posters')) {
+                                                const cleanName = selectedValue.replace('.html', '').replace(/-/g, ' ');
+                                                const capitalized = cleanName.split(' ')
+                                                    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+                                                    .join(' ');
+
+                                                if (selectedValue.includes('Movie-Posters')) {
+                                                    setExtraValue(`all|30`);
+                                                } else {
+                                                    setExtraValue(`${capitalized}|`);
+                                                }
+                                            }
                                         }
-                                    }
-                                }}
-                                className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-zulu-orange/50 appearance-none cursor-pointer"
-                            >
-                                <option value="" disabled className="bg-[#1a1a20]">Choose an Integration...</option>
-                                {integrations.map(item => (
-                                    <option key={item.value} value={item.value} className="bg-[#1a1a20]">{item.label}</option>
-                                ))}
-                            </select>
+                                    }}
+                                    className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-zulu-orange/50 appearance-none cursor-pointer"
+                                >
+                                    <option value="" disabled className="bg-[#1a1a20]">Choose an Integration...</option>
+                                    <option value="hdhomerun" className="bg-[#1a1a20] text-orange-400 font-bold">📡 HDHomeRun Local TV</option>
+                                    {integrations.map(item => (
+                                        <option key={item.value} value={item.value} className="bg-[#1a1a20]">{item.label}</option>
+                                    ))}
+                                </select>
+                                {value === 'hdhomerun' && (
+                                    <input
+                                        type="text"
+                                        value={extraValue}
+                                        onChange={(e) => setExtraValue(e.target.value)}
+                                        placeholder="192.168.1.50"
+                                        className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                        autoFocus
+                                    />
+                                )}
+                            </div>
                         ) : (type === 'rss' || type === 'media') ? (
                             <textarea
                                 value={value}
@@ -431,7 +446,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                 type="text"
                                 value={value}
                                 onChange={(e) => setValue(e.target.value)}
-                                placeholder={type === 'ticker' ? 'AAPL' : type === 'weather' ? 'New York, London, 90210...' : type === 'service' ? 'www.google.com' : type === 'hdhomerun' ? '192.168.1.50' : (type === 'proxy') ? 'https://www.google.com' : 'https://...'}
+                                placeholder={type === 'ticker' ? 'AAPL' : type === 'weather' ? 'New York, London, 90210...' : type === 'service' ? 'www.google.com' : (type === 'proxy') ? 'https://www.google.com' : 'https://...'}
                                 className={`w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 ${type === 'rss' ? 'focus:border-zulu-orange/50' : type === 'weather' ? 'focus:border-cyan-500/50' : (type === 'proxy') ? 'focus:border-zulu-orange/50' : 'focus:border-blue-500/50'}`}
                                 autoFocus
                             />
