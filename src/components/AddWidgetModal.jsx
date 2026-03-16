@@ -347,6 +347,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                 { id: 'ticker', label: 'Ticker', icon: TrendingUp },
                                 { id: 'weather', label: 'Weather', icon: CloudSun },
                                 { id: 'media', label: 'Slide Show', icon: Image },
+                                { id: 'camera', label: 'Camera', icon: Video },
                                 { id: 'service', label: 'Health Check', icon: Activity },
                                 { id: 'integration', label: 'Integration', icon: Plug },
                             ].map((item) => (
