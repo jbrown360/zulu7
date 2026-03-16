@@ -6,3 +6,10 @@ dist
 published_configs
 logs
 *.log
+docker_history
+dockhand_history
+snmp_history
+speedtest_history
+movies_metadata.json
+test.zip
+test_blank.cjs
