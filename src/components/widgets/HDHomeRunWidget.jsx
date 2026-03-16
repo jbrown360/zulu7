@@ -10,7 +10,6 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
     const containerRef = useRef(null);
 
     const deviceIp = data.value; // The IP address saved from the modal
-    const streamerUrl = window.config?.streamerUrl || 'http://localhost:1984';
 
     // 1. Fetch Channel Lineup on Mount or IP Change
     useEffect(() => {
@@ -74,7 +73,7 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
 
             // Call go2rtc local API to temporarily add this stream
             // /api/streams?dst=<stream_name>&src=<ffmpeg_url>
-            const addReq = await fetch(`${streamerUrl}/api/streams?dst=${streamId}&src=${encodeURIComponent(ffmpegUrl)}`, {
+            const addReq = await fetch(`/api/streams?dst=${streamId}&src=${encodeURIComponent(ffmpegUrl)}`, {
                 method: 'POST'
             });
 
@@ -84,13 +83,14 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
 
             // Once registered, we can play it via the existing StreamPlayer utilizing WebRTC or HLS.
             // We'll construct the local streamplayer URL:
-            const playerUrl = `${streamerUrl}/stream.html?src=${streamId}&mode=webrtc`;
+            const playerUrl = `/stream.html?src=${streamId}&mode=webrtc`;
             setStreamUrl(playerUrl);
 
         } catch (err) {
             console.error("HDHomeRun Stream Routing Error:", err);
-            // Fallback: try raw stream if proxy fails (browsers usually fail this, but maybe it works for direct VLC links)
-            setStreamUrl(channel.URL);
+            // Show an error in the UI instead of falling back to a raw HTTP-TS link that forces a file download
+            setStatus('error');
+            setErrorMsg('Failed to configure live stream proxy. Ensure the backend server is running and reachable.');
         }
     };
 
