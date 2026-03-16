@@ -201,18 +201,24 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
 
         setIsSubmitting(true);
         let urlToSave = value;
+        let submitType = type;
+
+        if (type === 'integration' && value === 'hdhomerun') {
+            submitType = 'hdhomerun';
+            urlToSave = extraValue;
+        }
 
         // Auto-convert YouTube links for iFrames
-        if (type === 'iframe') {
+        if (submitType === 'iframe') {
             const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-            const match = value.match(ytRegex);
+            const match = urlToSave.match(ytRegex);
             if (match && match[1]) {
                 urlToSave = `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1&mute=1`;
             }
         }
 
         let finalValue = urlToSave;
-        if (type === 'service') {
+        if (submitType === 'service') {
             const parts = extraValue.split('|');
             const sName = parts[0] || 'Health Check';
             const sType = parts[1] || 'http';
@@ -221,20 +227,20 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             const sDisabled = parts[4] || 'false';
 
             finalValue = `${sName}|${sType}|${value}|${sPort}|${sInterval}|${sDisabled}`;
-        } else if (type === 'media') {
+        } else if (submitType === 'media') {
             finalValue = `${urlToSave}|${extraValue || '180'}`;
-        } else if (type === 'weather') {
+        } else if (submitType === 'weather') {
             finalValue = `${urlToSave}|${extraValue || 'fahrenheit'}`;
-        } else if (type === 'hdhomerun') {
+        } else if (submitType === 'hdhomerun') {
             // value contains the IP address. Trim whitespace and http prefix if provided accidentally.
             let cleanIp = urlToSave.trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
             finalValue = `${cleanIp}`;
-        } else if (type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy' || type === 'web' || type === 'integration') {
+        } else if (submitType === 'icon' || submitType === 'iframe' || submitType === 'rss' || submitType === 'camera' || submitType === 'proxy' || submitType === 'web' || submitType === 'integration') {
             // extraValue acts as "Name|Icon" or just "Name"
             let [name, icon] = extraValue.split('|');
 
             // Handle Integration URL
-            if (type === 'integration') {
+            if (submitType === 'integration') {
                 urlToSave = `/integrations/${value}`;
             }
 
@@ -266,7 +272,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                         const urlStr = urlToSave.startsWith('http') ? urlToSave : `https://${urlToSave}`;
                         const urlObj = new URL(urlStr);
 
-                        if (type === 'camera' && urlObj.searchParams.get('src')) {
+                        if (submitType === 'camera' && urlObj.searchParams.get('src')) {
                             const src = urlObj.searchParams.get('src');
                             name = src.charAt(0).toUpperCase() + src.slice(1);
                         } else {
@@ -278,7 +284,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                             name = mainName.charAt(0).toUpperCase() + mainName.slice(1);
                         }
                     } catch { // ignore
-                        name = type === 'camera' ? 'Camera' : 'Link';
+                        name = submitType === 'camera' ? 'Camera' : 'Link';
                     }
                 }
             }
@@ -286,7 +292,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             finalValue = `${urlToSave}|${name}|${icon || ''}`;
         }
 
-        if (type === 'movie-posters' || type === 'movie-poster' || (type === 'integration' && (value === 'Movie-Posters' || value === 'Movie-Posters.html' || value === 'movie-poster' || value === 'movie-poster.html'))) {
+        if (submitType === 'movie-posters' || submitType === 'movie-poster' || (submitType === 'integration' && (value === 'Movie-Posters' || value === 'Movie-Posters.html' || value === 'movie-poster' || value === 'movie-poster.html'))) {
             const interval = extraValue.split('|')[1] || '30';
             const genreToSave = 'all';
             const decade = extraValue.split('|')[0] || 'all';
@@ -306,7 +312,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
         }
 
         if (isMounted.current) {
-            onSave(type, finalValue, editWidget ? editWidget.id : null);
+            onSave(submitType, finalValue, editWidget ? editWidget.id : null);
             setIsSubmitting(false);
             onClose();
         }
@@ -418,10 +424,12 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                     className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-zulu-orange/50 appearance-none cursor-pointer"
                                 >
                                     <option value="" disabled className="bg-[#1a1a20]">Choose an Integration...</option>
-                                    <option value="hdhomerun" className="bg-[#1a1a20] text-orange-400 font-bold">📡 HDHomeRun Local TV</option>
-                                    {integrations.map(item => (
-                                        <option key={item.value} value={item.value} className="bg-[#1a1a20]">{item.label}</option>
-                                    ))}
+                                    {[{ value: 'hdhomerun', label: 'HDHomeRun Local TV' }, ...integrations]
+                                        .sort((a, b) => a.label.localeCompare(b.label))
+                                        .map(item => (
+                                            <option key={item.value} value={item.value} className="bg-[#1a1a20]">{item.label}</option>
+                                        ))
+                                    }
                                 </select>
                                 {value === 'hdhomerun' && (
                                     <input
