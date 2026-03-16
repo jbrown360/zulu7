@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, SlidersHorizontal, Lock, Unlock, CalendarDays, Play, Pause, Minus, ChevronDown, Square, Share2, X, History, Monitor, Tv, Calendar, DollarSign, Cake, Copy, Check, Pencil, GripVertical } from 'lucide-react';
+import { Plus, SlidersHorizontal, Lock, Unlock, CalendarDays, Play, Pause, Minus, ChevronDown, ChevronLeft, ChevronRight, Square, Share2, X, History, Monitor, Tv, Calendar, DollarSign, Cake, Copy, Check, Pencil, GripVertical } from 'lucide-react';
 import { STORAGE_KEYS } from '../utils/constants';
 
 const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddModal, activeWorkspace, setActiveWorkspace, onOpenCalendar, onUpdateSettings, totalWorkspaces = 7, onAddWorkspace, onDeleteWorkspace, onSwapWorkspaces, disablePersistence, isRestricted = false }) => {
@@ -178,9 +178,9 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
 
     // Helper for icons
     const EVENT_ICONS = {
-        appointment: <Calendar size={18} className="text-orange-500" />,
-        bill: <DollarSign size={18} className="text-orange-500" />,
-        birthday: <Cake size={18} className="text-orange-500" />
+        appointment: <Calendar size={18} className="text-zulu-orange" />,
+        bill: <DollarSign size={18} className="text-zulu-orange" />,
+        birthday: <Cake size={18} className="text-zulu-orange" />
     };
 
     // Check for events
@@ -352,10 +352,32 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
 
                     {/* Workspace Tabs */}
                     {!isRestricted && (
-                        <div className="flex items-center bg-white/5 rounded-none p-1 border border-white/5">
+                        <div className="flex items-center bg-white/5 rounded-none p-0.5 border border-white/5">
+                            {/* Desktop Previous Chevron */}
+                            <button
+                                onClick={() => {
+                                    let nextIdx = (activeWorkspace - 1 + totalWorkspaces) % totalWorkspaces;
+                                    let attempts = 0;
+                                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
+                                        nextIdx = (nextIdx - 1 + totalWorkspaces) % totalWorkspaces;
+                                        attempts++;
+                                    }
+                                    if (nextIdx !== activeWorkspace) {
+                                        setActiveWorkspace(nextIdx);
+                                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
+                                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+                                        }
+                                    }
+                                }}
+                                className="h-7 w-5 flex items-center justify-center text-white/40 hover:text-orange-400 hover:bg-white/5 hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer"
+                                title="Previous Dashboard"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+
                             {/* Scrollable List */}
                             <div
-                                className="workspace-tabs-list flex items-center space-x-1 overflow-x-auto max-w-[140px] md:max-w-[220px] no-scrollbar scroll-smooth"
+                                className="workspace-tabs-list flex items-center space-x-1 overflow-x-auto max-w-[140px] md:max-w-[220px] no-scrollbar scroll-smooth px-1 border-x border-white/5 mx-1"
                                 ref={(el) => {
                                     if (el && activeWorkspace >= 0) {
                                         // Simple auto-scroll to keep active in view
@@ -427,7 +449,6 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                             title={isEnabled ? (isLocked ? name : `Hold to drag | ${name}`) : `${name} (Disabled)`}
                                             className={`
                                                 workspace-bubble no-underline h-7 w-7 min-w-[1.75rem] rounded-none flex items-center justify-center transition-all duration-300 transform
-                                                ${isEnabled ? 'cursor-pointer' : 'cursor-not-allowed opacity-30 bg-white/5 text-white/20'}
                                                 ${activeWorkspace === i
                                                     ? 'active-workspace-bubble bg-orange-500 text-white shadow-lg shadow-orange-500/30 scale-110 z-10'
                                                     : (isEnabled ? 'text-white/40 hover:text-orange-400 hover:bg-white/2 hover:scale-125 hover:z-20 hover:shadow-lg hover:shadow-orange-500/20' : '')}
@@ -440,6 +461,28 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                     );
                                 })}
                             </div>
+
+                            {/* Desktop Next Chevron */}
+                            <button
+                                onClick={() => {
+                                    let nextIdx = (activeWorkspace + 1) % totalWorkspaces;
+                                    let attempts = 0;
+                                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
+                                        nextIdx = (nextIdx + 1) % totalWorkspaces;
+                                        attempts++;
+                                    }
+                                    if (nextIdx !== activeWorkspace) {
+                                        setActiveWorkspace(nextIdx);
+                                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
+                                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+                                        }
+                                    }
+                                }}
+                                className="h-7 w-5 flex items-center justify-center text-white/40 hover:text-orange-400 hover:bg-white/5 hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer"
+                                title="Next Dashboard"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
                         </div>
                     )}
 
@@ -608,7 +651,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                             setIsDropdownOpen(!isDropdownOpen);
                                         }
                                     }}
-                                    className={`no-underline text-sm font-semibold tracking-wider ${isRestricted ? 'text-white' : 'text-orange-500'} transition-all duration-300 ${(!isLocked && !isRestricted) ? 'cursor-text' : 'cursor-pointer'} hover:text-orange-400 flex items-center`}
+                                    className={`no-underline text-sm font-bold tracking-wider ${isRestricted ? 'text-white' : 'text-orange-500'} transition-all duration-300 ${(!isLocked && !isRestricted) ? 'cursor-text' : 'cursor-pointer'} hover:text-orange-400 flex items-center`}
                                 >
                                     {isRestricted && (
                                         <div className="mr-2 w-5 h-3.5 border border-orange-500 rounded-[2px] flex items-center justify-center bg-orange-500/10 shrink-0 shadow-sm" title="Z7 | Shared Dashboard">
@@ -641,7 +684,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                     >
                                         {todayEventTypes.map(type => (
                                             <span key={type} className="leading-none flex items-center" title={type}>
-                                                {EVENT_ICONS[type] || <Calendar size={18} className="text-orange-500" />}
+                                                {EVENT_ICONS[type] || <Calendar size={18} className="text-zulu-orange" />}
                                             </span>
                                         ))}
                                     </div>
@@ -682,7 +725,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                     onOpenSettings('general', activeWorkspace);
                                 }
                             }}
-                            className={`no-underline hidden md:flex text-sm font-mono tracking-wider text-orange-500 cursor-pointer hover:text-orange-400 transition-colors max-w-[150px] overflow-hidden whitespace-nowrap`}
+                            className={`no-underline hidden md:flex text-sm font-mono font-bold tracking-wider text-orange-500 cursor-pointer hover:text-orange-400 transition-colors max-w-[150px] overflow-hidden whitespace-nowrap`}
                             title={`${settings?.labName || "Zulu7"} ${disablePersistence ? '(Viewing Shared)' : '(Local)'}`}
                         >
                             <div className={(settings?.labName || "Zulu7").length > 15 ? "animate-marquee-infinite" : ""}>
@@ -701,7 +744,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                         <div className="flex items-center bg-white/2 rounded-none p-1 border border-white/5 space-x-1 pointer-events-auto opacity-90 hover:opacity-100 transition-opacity">
                             <button
                                 onClick={openAddModal}
-                                className="h-7 w-7 flex items-center justify-center rounded-none text-white/70 hover:text-orange-400 hover:bg-white/2 transition-all active:scale-95 cursor-pointer"
+                                className="h-7 w-7 flex items-center justify-center rounded-none text-orange-500 hover:text-orange-400 hover:bg-white/2 transition-all active:scale-95 cursor-pointer"
                                 title="Add Widget"
                             >
                                 <Plus size={16} />
@@ -709,7 +752,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                             <div className="w-[1px] h-4 bg-white/5"></div>
                             <button
                                 onClick={() => onOpenSettings('general', activeWorkspace)}
-                                className="h-7 w-7 flex items-center justify-center rounded-none text-white/70 hover:text-orange-400 hover:bg-white/2 transition-all active:scale-95 cursor-pointer"
+                                className="h-7 w-7 flex items-center justify-center rounded-none text-orange-500 hover:text-orange-400 hover:bg-white/2 transition-all active:scale-95 cursor-pointer"
                                 title="Dashboard Settings"
                             >
                                 <SlidersHorizontal size={16} />
@@ -796,10 +839,10 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                                         }}
                                                         className={`
                                                             group flex items-center justify-between px-3 py-2 transition-all cursor-pointer border-l-2
-                                                            ${isActive ? 'border-l-orange-500' : 'border-transparent'}
+                                                            ${isActive ? 'border-l-zulu-orange' : 'border-transparent'}
                                                             ${draggedHistoryIdx === idx ? 'opacity-20 scale-90 bg-white/5' : 'hover:bg-white/5'}
-                                                            ${historyDragOverIdx === idx ? 'border-l-orange-500 bg-white/10 scale-105' : ''}
-                                                            ${historyDragOverIdx === idx && draggedHistoryIdx !== idx ? 'ring-1 ring-orange-500 ring-inset' : ''}
+                                                            ${historyDragOverIdx === idx ? 'border-l-zulu-orange bg-white/10 scale-105' : ''}
+                                                            ${historyDragOverIdx === idx && draggedHistoryIdx !== idx ? 'ring-1 ring-zulu-orange ring-inset' : ''}
                                                         `}
                                                         onClick={() => {
                                                             window.location.href = item.url;
@@ -888,7 +931,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                         <div className="flex items-center space-x-2 p-0.5">
                             {todayEventTypes.map(type => (
                                 <span key={type} className="leading-none flex items-center">
-                                    {EVENT_ICONS[type] || <Calendar size={18} className="text-orange-500" />}
+                                    {EVENT_ICONS[type] || <Calendar size={18} className="text-zulu-orange" />}
                                 </span>
                             ))}
                         </div>
