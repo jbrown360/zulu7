@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Monitor, RefreshCcw, Tv, AlertTriangle, WifiOff, Loader2, Play } from 'lucide-react';
-// We'll reuse the StreamPlayer for HLS playback
-import StreamPlayer from './StreamPlayer';
 
 const HDHomeRunWidget = ({ data, isLocked }) => {
     const [channels, setChannels] = useState([]);
@@ -135,8 +133,8 @@ const HDHomeRunWidget = ({ data, isLocked }) => {
                                 key={ch.GuideNumber}
                                 onClick={() => handleChannelSelect(ch)}
                                 className={`w-full text-left px-3 py-2 flex items-center justify-between transition-colors border-l-2 ${selectedChannel?.GuideNumber === ch.GuideNumber
-                                        ? 'bg-orange-500/10 border-orange-500 text-white'
-                                        : 'border-transparent text-gray-400 hover:bg-white/5 hover:text-white'
+                                    ? 'bg-orange-500/10 border-orange-500 text-white'
+                                    : 'border-transparent text-gray-400 hover:bg-white/5 hover:text-white'
                                     }`}
                             >
                                 <div className="flex flex-col truncate pr-2">
