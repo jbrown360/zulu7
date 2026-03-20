@@ -3,9 +3,9 @@ import { X, ChevronLeft, ChevronRight, Save, Trash2, Plus, Calendar, Check, Doll
 
 // Event Types Configuration (Constant)
 const EVENT_TYPES = {
-    appointment: { label: 'Appointment', color: 'bg-blue-500', borderColor: 'border-blue-500/50', ringColor: 'ring-blue-500/50', icon: <Calendar size={18} className="text-orange-500" />, defaultRecurrence: 'none' },
-    bill: { label: 'Bill', color: 'bg-red-500', borderColor: 'border-red-500/50', ringColor: 'ring-red-500/50', icon: <DollarSign size={18} className="text-orange-500" />, defaultRecurrence: 'monthly' },
-    birthday: { label: 'Birthday', color: 'bg-purple-500', borderColor: 'border-purple-500/50', ringColor: 'ring-purple-500/50', icon: <Cake size={18} className="text-orange-500" />, defaultRecurrence: 'yearly', locked: true }
+    appointment: { label: 'Appointment', color: 'bg-blue-500', borderColor: 'border-blue-500/50', ringColor: 'ring-blue-500/50', icon: <Calendar size={18} className="text-zulu-orange" />, defaultRecurrence: 'none' },
+    bill: { label: 'Bill', color: 'bg-red-500', borderColor: 'border-red-500/50', ringColor: 'ring-red-500/50', icon: <DollarSign size={18} className="text-zulu-orange" />, defaultRecurrence: 'monthly' },
+    birthday: { label: 'Birthday', color: 'bg-purple-500', borderColor: 'border-purple-500/50', ringColor: 'ring-purple-500/50', icon: <Cake size={18} className="text-zulu-orange" />, defaultRecurrence: 'yearly', locked: true }
 };
 
 // Helper to generate time slots (15 min intervals) in AM/PM format
@@ -468,17 +468,17 @@ const CalendarOverlay = ({ isOpen, onClose, initialDate }) => {
                         >
                             {viewMode === 'month' && (
                                 <h2 className="text-3xl font-light tracking-tight">
-                                    <span className="font-bold text-orange-500">{monthNames[month]}</span> <span className="text-white">{year}</span>
+                                    <span className="font-bold text-zulu-orange">{monthNames[month]}</span> <span className="text-white">{year}</span>
                                 </h2>
                             )}
                             {viewMode === 'week' && (
                                 <h2 className="text-3xl font-light tracking-tight">
-                                    <span className="font-bold text-orange-500">{monthNames[weekDays[0].getMonth()]}</span> <span className="text-white">{weekDays[0].getFullYear()}</span>
+                                    <span className="font-bold text-zulu-orange">{monthNames[weekDays[0].getMonth()]}</span> <span className="text-white">{weekDays[0].getFullYear()}</span>
                                 </h2>
                             )}
                             {viewMode === 'day' && (
                                 <h2 className="text-3xl font-light tracking-tight">
-                                    <span className="font-bold text-orange-500">{viewDate.toLocaleDateString('en-US', { weekday: 'long' })}</span> <span className="text-white ml-2">{viewDate.getDate()} {monthNames[viewDate.getMonth()]}</span> <span className="text-orange-500 ml-2">{year}</span>
+                                    <span className="font-bold text-zulu-orange">{viewDate.toLocaleDateString('en-US', { weekday: 'long' })}</span> <span className="text-white ml-2">{viewDate.getDate()} {monthNames[viewDate.getMonth()]}</span> <span className="text-zulu-orange ml-2">{year}</span>
                                 </h2>
                             )}
                         </div>
@@ -524,7 +524,7 @@ const CalendarOverlay = ({ isOpen, onClose, initialDate }) => {
                         <button
                             onClick={onClose}
                             title="Close Calendar"
-                            className="p-3 text-white/50 hover:text-orange-500 hover:bg-white/10 rounded-none transition-all cursor-pointer"
+                            className="p-3 text-white/50 hover:text-zulu-orange hover:bg-white/10 rounded-none transition-all cursor-pointer"
                         >
                             <X size={24} />
                         </button>

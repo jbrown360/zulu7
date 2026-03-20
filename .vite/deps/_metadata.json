@@ -1,0 +1,73 @@
+{
+  "hash": "0a236449",
+  "configHash": "a253e06f",
+  "lockfileHash": "54669200",
+  "browserHash": "1470534b",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "e06c7a8c",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "0aebea5c",
+      "needsInterop": true
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "b35c8382",
+      "needsInterop": false
+    },
+    "react-grid-layout": {
+      "src": "../../node_modules/react-grid-layout/dist/index.mjs",
+      "file": "react-grid-layout.js",
+      "fileHash": "7445f07b",
+      "needsInterop": false
+    },
+    "react-simple-code-editor": {
+      "src": "../../node_modules/react-simple-code-editor/lib/index.js",
+      "file": "react-simple-code-editor.js",
+      "fileHash": "f21dfc61",
+      "needsInterop": true
+    },
+    "prismjs": {
+      "src": "../../node_modules/prismjs/prism.js",
+      "file": "prismjs.js",
+      "fileHash": "e770f07e",
+      "needsInterop": true
+    },
+    "prismjs/components/prism-markup": {
+      "src": "../../node_modules/prismjs/components/prism-markup.js",
+      "file": "prismjs_components_prism-markup.js",
+      "fileHash": "7bd6c657",
+      "needsInterop": true
+    },
+    "prismjs/components/prism-javascript": {
+      "src": "../../node_modules/prismjs/components/prism-javascript.js",
+      "file": "prismjs_components_prism-javascript.js",
+      "fileHash": "414a0b27",
+      "needsInterop": true
+    },
+    "prismjs/components/prism-css": {
+      "src": "../../node_modules/prismjs/components/prism-css.js",
+      "file": "prismjs_components_prism-css.js",
+      "fileHash": "1c725b6f",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-YEAEU3JQ": {
+      "file": "chunk-YEAEU3JQ.js"
+    },
+    "chunk-3IFX6TK2": {
+      "file": "chunk-3IFX6TK2.js"
+    },
+    "chunk-G3PMV62Z": {
+      "file": "chunk-G3PMV62Z.js"
+    }
+  }
+}

@@ -258,42 +258,59 @@ const TickerWidget = ({ data, finnhubKey, isLocked }) => {
         }
     };
 
+    const [isVisible, setIsVisible] = useState(true);
+
+    // Visibility tracking (Hibernation)
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsVisible(entry.isIntersecting),
+            { threshold: 0.1 }
+        );
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
     useEffect(() => {
         let timeoutId;
-        const cached = getCachedData();
-        if (cached) {
-            setQuote(cached.quote);
-            setHistory(cached.history || []);
-            setLoading(false);
-            setMarketStatus(checkMarketStatus());
-        } else {
-            const initialLoad = () => {
-                const status = checkMarketStatus();
-                setMarketStatus(status);
-                if (loading || status === 'Open') {
-                    fetchStockData(true);
-                }
-            };
-            const delay = Math.random() * 2000 + 100;
-            timeoutId = setTimeout(initialLoad, delay);
+
+        // Initial load or resume from hibernation
+        if (isVisible) {
+            const cached = getCachedData();
+            if (cached) {
+                setQuote(cached.quote);
+                setHistory(cached.history || []);
+                setLoading(false);
+                setMarketStatus(checkMarketStatus());
+            } else {
+                const initialLoad = () => {
+                    const status = checkMarketStatus();
+                    setMarketStatus(status);
+                    if (loading || status === 'Open') {
+                        fetchStockData(true);
+                    }
+                };
+                const delay = Math.random() * 2000 + 100;
+                timeoutId = setTimeout(initialLoad, delay);
+            }
         }
 
         const statusInterval = setInterval(() => {
-            setMarketStatus(checkMarketStatus());
+            if (isVisible) setMarketStatus(checkMarketStatus());
         }, 60000);
 
         const dataInterval = setInterval(() => {
-            if (checkMarketStatus() === 'Open') {
+            if (isVisible && checkMarketStatus() === 'Open') {
                 fetchStockData(true);
             }
         }, 600000);
 
         return () => {
-            clearTimeout(timeoutId);
+            if (timeoutId) clearTimeout(timeoutId);
             clearInterval(statusInterval);
             clearInterval(dataInterval);
         };
-    }, [symbol]);
+    }, [symbol, isVisible]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {
@@ -385,14 +402,14 @@ const TickerWidget = ({ data, finnhubKey, isLocked }) => {
             {/* Header: Symbol & Refresh (Hidden in Fullscreen) */}
             {!isFullscreen && (
                 <div className="flex items-center justify-between h-10 px-3 bg-white/5 border-b border-white/5 z-20 shrink-0">
-                    <span className="text-xs font-black tracking-tight text-white uppercase flex items-center">
-                        {isPositive ? <TrendingUp size={14} className="mr-2 text-white/70" /> : <TrendingDown size={14} className="mr-2 text-white/70" />}
+                    <span className="text-xs font-black tracking-tight uppercase flex items-center" style={{ color: '#999' }}>
+                        {isPositive ? <TrendingUp size={14} className="mr-2 text-[#999]/70" /> : <TrendingDown size={14} className="mr-2 text-[#999]/70" />}
                         {displayName}
                     </span>
                     {isLocked && (
                         <button
                             onClick={(e) => { e.stopPropagation(); setLoading(true); fetchStockData(true); }}
-                            className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-white/70 hover:text-orange-500 transition-colors cursor-pointer no-focus"
+                            className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-[#999]/70 hover:text-zulu-orange transition-colors cursor-pointer no-focus"
                             title="Refresh Widget"
                         >
                             <RefreshCw size={14} />
@@ -423,7 +440,7 @@ const TickerWidget = ({ data, finnhubKey, isLocked }) => {
                 ) : (
                     <>
                         {/* Price Display */}
-                        <div className={`${isFullscreen ? 'text-[10vw] md:text-[12rem]' : 'text-4xl'} font-bold tracking-tighter text-white drop-shadow-2xl leading-none`}>
+                        <div className={`${isFullscreen ? 'text-[10vw] md:text-[12rem]' : 'text-4xl'} font-bold tracking-tighter drop-shadow-2xl leading-none`} style={{ color: '#999' }}>
                             ${quote.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
 
@@ -441,13 +458,13 @@ const TickerWidget = ({ data, finnhubKey, isLocked }) => {
 
                                 {/* Full Company Name (Below data in Fullscreen) */}
                                 {((quote.name || displayName).toUpperCase() !== symbol.toUpperCase()) && (
-                                    <div className="text-3xl md:text-5xl font-black text-white mt-10 tracking-tight uppercase max-w-full px-6 drop-shadow-2xl line-clamp-2 leading-tight">
+                                    <div className="text-3xl md:text-5xl font-black mt-10 tracking-tight uppercase max-w-full px-6 drop-shadow-2xl line-clamp-2 leading-tight" style={{ color: '#999' }}>
                                         {quote.name || displayName}
                                     </div>
                                 )}
                             </div>
                         ) : (
-                            <div className={`flex items-center text-xs font-bold px-2 py-0.5 rounded-none mt-2 backdrop-blur-sm bg-black/20 text-white shadow-sm`}>
+                            <div className={`flex items-center text-xs font-bold px-2 py-0.5 rounded-none mt-2 backdrop-blur-sm bg-black/20 shadow-sm`} style={{ color: '#999' }}>
                                 {quote.change > 0 ? '+' : ''}{quote.change.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({quote.percentChange.toFixed(2)}%)
                             </div>
                         )}

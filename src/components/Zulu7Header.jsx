@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, SlidersHorizontal, Lock, Unlock, CalendarDays, Play, Pause, Minus, ChevronDown, ChevronLeft, ChevronRight, Square, Share2, X, History, Monitor, Tv, Calendar, DollarSign, Cake, Copy, Check, Pencil, GripVertical } from 'lucide-react';
+import { Plus, SlidersHorizontal, Lock, Unlock, CalendarDays, Play, Pause, Minus, ChevronDown, Square, Share2, X, History, Monitor, Tv, Calendar, DollarSign, Cake, Copy, Check, Pencil, GripVertical } from 'lucide-react';
 import { STORAGE_KEYS } from '../utils/constants';
 
 const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddModal, activeWorkspace, setActiveWorkspace, onOpenCalendar, onUpdateSettings, totalWorkspaces = 7, onAddWorkspace, onDeleteWorkspace, onSwapWorkspaces, disablePersistence, isRestricted = false }) => {
@@ -141,9 +141,12 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
         e.stopPropagation();
         const newName = window.prompt("Enter new name for this dashboard:", currentName);
         if (newName && newName.trim() !== "" && newName !== currentName) {
-            const newNames = { ...(settings?.dashboardNames || {}) };
-            newNames[index] = newName.trim();
-            if (onUpdateSettings) onUpdateSettings({ ...settings, dashboardNames: newNames });
+            if (onUpdateSettings) {
+                onUpdateSettings(prev => ({
+                    ...prev,
+                    dashboardNames: { ...(prev?.dashboardNames || {}), [index]: newName.trim() }
+                }));
+            }
         }
     };
 
@@ -334,10 +337,10 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                     if (newStatus && !isLocked) {
                                         setIsLocked(true);
                                     }
-                                    onUpdateSettings({
-                                        ...settings,
+                                    onUpdateSettings(prev => ({
+                                        ...prev,
                                         isWorkspaceRotationEnabled: newStatus
-                                    });
+                                    }));
                                 }
                             }}
                             className={`
@@ -352,32 +355,10 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
 
                     {/* Workspace Tabs */}
                     {!isRestricted && (
-                        <div className="flex items-center bg-white/5 rounded-none p-0.5 border border-white/5">
-                            {/* Desktop Previous Chevron */}
-                            <button
-                                onClick={() => {
-                                    let nextIdx = (activeWorkspace - 1 + totalWorkspaces) % totalWorkspaces;
-                                    let attempts = 0;
-                                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
-                                        nextIdx = (nextIdx - 1 + totalWorkspaces) % totalWorkspaces;
-                                        attempts++;
-                                    }
-                                    if (nextIdx !== activeWorkspace) {
-                                        setActiveWorkspace(nextIdx);
-                                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
-                                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
-                                        }
-                                    }
-                                }}
-                                className="h-7 w-5 flex items-center justify-center text-white/40 hover:text-orange-400 hover:bg-white/5 hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer"
-                                title="Previous Dashboard"
-                            >
-                                <ChevronLeft size={16} />
-                            </button>
-
+                        <div className="flex items-center bg-white/5 rounded-none p-1 border border-white/5">
                             {/* Scrollable List */}
                             <div
-                                className="workspace-tabs-list flex items-center space-x-1 overflow-x-auto max-w-[140px] md:max-w-[220px] no-scrollbar scroll-smooth px-1 border-x border-white/5 mx-1"
+                                className="workspace-tabs-list flex items-center space-x-1 overflow-x-auto max-w-[140px] md:max-w-[220px] no-scrollbar scroll-smooth"
                                 ref={(el) => {
                                     if (el && activeWorkspace >= 0) {
                                         // Simple auto-scroll to keep active in view
@@ -461,28 +442,6 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                     );
                                 })}
                             </div>
-
-                            {/* Desktop Next Chevron */}
-                            <button
-                                onClick={() => {
-                                    let nextIdx = (activeWorkspace + 1) % totalWorkspaces;
-                                    let attempts = 0;
-                                    while (settings?.dashboardRotationSelection?.[nextIdx] === false && attempts < totalWorkspaces) {
-                                        nextIdx = (nextIdx + 1) % totalWorkspaces;
-                                        attempts++;
-                                    }
-                                    if (nextIdx !== activeWorkspace) {
-                                        setActiveWorkspace(nextIdx);
-                                        if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
-                                            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
-                                        }
-                                    }
-                                }}
-                                className="h-7 w-5 flex items-center justify-center text-white/40 hover:text-orange-400 hover:bg-white/5 hover:scale-110 active:scale-95 transition-all duration-300 cursor-pointer"
-                                title="Next Dashboard"
-                            >
-                                <ChevronRight size={16} />
-                            </button>
                         </div>
                     )}
 
@@ -547,7 +506,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                                     setActiveWorkspace(i);
                                                     setIsDropdownOpen(false);
                                                     if (settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
-                                                        onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+                                                        onUpdateSettings(prev => ({ ...prev, isWorkspaceRotationEnabled: false }));
                                                     }
                                                 }}
                                             >
@@ -604,18 +563,24 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                                         onChange={(e) => setEditValue(e.target.value)}
                                         onBlur={() => {
                                             if (editValue.trim() !== "" && editValue !== workspaceName) {
-                                                const newNames = { ...(settings?.dashboardNames || {}) };
-                                                newNames[activeWorkspace] = editValue.trim();
-                                                if (onUpdateSettings) onUpdateSettings({ ...settings, dashboardNames: newNames });
+                                                if (onUpdateSettings) {
+                                                    onUpdateSettings(prev => ({
+                                                        ...prev,
+                                                        dashboardNames: { ...(prev?.dashboardNames || {}), [activeWorkspace]: editValue.trim() }
+                                                    }));
+                                                }
                                             }
                                             setIsEditing(false);
                                         }}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') {
                                                 if (editValue.trim() !== "" && editValue !== workspaceName) {
-                                                    const newNames = { ...(settings?.dashboardNames || {}) };
-                                                    newNames[activeWorkspace] = editValue.trim();
-                                                    if (onUpdateSettings) onUpdateSettings({ ...settings, dashboardNames: newNames });
+                                                    if (onUpdateSettings) {
+                                                        onUpdateSettings(prev => ({
+                                                            ...prev,
+                                                            dashboardNames: { ...(prev?.dashboardNames || {}), [activeWorkspace]: editValue.trim() }
+                                                        }));
+                                                    }
                                                 }
                                                 setIsEditing(false);
                                             } else if (e.key === 'Escape') {
@@ -898,7 +863,7 @@ const Zulu7Header = ({ settings, isLocked, setIsLocked, onOpenSettings, openAddM
                             const newLocked = !isLocked;
                             setIsLocked(newLocked);
                             if (!newLocked && settings?.isWorkspaceRotationEnabled && onUpdateSettings) {
-                                onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+                                onUpdateSettings(prev => ({ ...prev, isWorkspaceRotationEnabled: false }));
                             }
                         }}
                         className={`

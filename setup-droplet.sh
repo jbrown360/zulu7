@@ -19,6 +19,9 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" upgrade -y
 
+# Install bare-metal scanning tools for native Node drops
+apt-get install -y nmap
+
 # 2. Install Docker & Docker Compose
 echo ""
 echo "[2/4] Installing Docker and Git..."
@@ -41,6 +44,7 @@ echo "[3/4] Setting up localized Zulu7 volumes..."
 
 # Ensure necessary directories and files exist for docker volumes
 mkdir -p published_configs
+mkdir -p integrations
 
 # Create a default go2rtc config if it doesn't exist to prevent Docker mount errors
 if [ ! -f "go2rtc.yaml" ]; then

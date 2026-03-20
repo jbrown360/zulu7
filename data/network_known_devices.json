@@ -1,0 +1,194 @@
+{
+  "12:8f:61:3f:41:ba": {
+    "name": "Plex"
+  },
+  "82:dd:a2:8d:29:ef": {
+    "name": "Reolink - NVR8"
+  },
+  "3c:7a:aa:85:0e:c6": {
+    "name": "Reolink - Kitchen"
+  },
+  "80:2a:a8:19:a4:71": {
+    "name": "UAP01"
+  },
+  "78:8a:20:7e:a2:c0": {
+    "name": "USW01"
+  },
+  "fc:ec:da:d1:39:71": {
+    "name": "USW03"
+  },
+  "f0:9f:c2:15:7e:05": {
+    "name": "USW04"
+  },
+  "80:2a:a8:80:af:e4": {
+    "name": "UAP02"
+  },
+  "4c:5e:0c:74:79:19": {
+    "name": "TAP01"
+  },
+  "fc:ec:da:05:6a:f4": {
+    "name": "USW02"
+  },
+  "00:18:dd:06:0c:d8": {
+    "name": "HDHomerun"
+  },
+  "10:bf:48:1f:11:3d": {
+    "name": "EBOX01"
+  },
+  "ec:71:db:90:cd:be": {
+    "name": "Reolink-8"
+  },
+  "ec:71:db:c2:07:48": {
+    "name": "Reolink-16"
+  },
+  "42:c5:63:4f:38:6d": {
+    "name": "Jonathan - Pixel 9a"
+  },
+  "e0:01:c7:b3:0b:b4": {
+    "name": "Reolink - SStairs"
+  },
+  "e0:01:c7:b3:03:ec": {
+    "name": "Reolink - Dinning"
+  },
+  "40:aa:56:38:11:66": {
+    "name": "Reolink - Dinning"
+  },
+  "38:c8:04:46:a1:ec": {
+    "name": "Reolink - Living"
+  },
+  "8c:16:45:62:2e:e2": {
+    "name": "Parrot - LAN"
+  },
+  "f6:df:bd:98:84:05": {
+    "name": "Tablet - Jeremy"
+  },
+  "6c:ad:f8:32:b4:ad": {
+    "name": "Chomecast - Bedroom"
+  },
+  "00:11:32:0d:ac:07": {
+    "name": "NAS01"
+  },
+  "00:11:32:67:58:e9": {
+    "name": "NAS02"
+  },
+  "00:11:32:3f:cf:9d": {
+    "name": "NAS03"
+  },
+  "00:23:24:b6:d3:b4": {
+    "name": "Portait"
+  },
+  "54:e1:ad:94:45:51": {
+    "name": "LT - Right"
+  },
+  "54:e1:ad:ad:31:22": {
+    "name": "LT - Left"
+  },
+  "54:e1:ad:54:32:8d": {
+    "name": "LT - Main"
+  },
+  "e4:b3:18:48:40:63": {
+    "name": "Office"
+  },
+  "3c:9b:d6:3c:2a:0d": {
+    "name": "Visio Sound Bar"
+  },
+  "a4:77:33:0e:d5:2c": {
+    "name": "Chromecast - Office Clock"
+  },
+  "8a:8f:9e:23:c0:b0": {
+    "name": "HomeAS"
+  },
+  "32:6e:1d:77:77:08": {
+    "name": "XOA"
+  },
+  "ac:e2:d3:16:cc:33": {
+    "name": "XEN01"
+  },
+  "10:e7:c6:04:aa:e1": {
+    "name": "XEN02"
+  },
+  "fe:b8:71:7f:7b:88": {
+    "name": "VPX"
+  },
+  "10:62:e5:11:ad:34": {
+    "name": "XEN04"
+  },
+  "fe:62:40:b5:44:57": {
+    "name": "DOCK03"
+  },
+  "36:dd:5a:56:93:0d": {
+    "name": "DOCK02"
+  },
+  "f2:f7:e5:00:3e:10": {
+    "name": "DOCK01"
+  },
+  "ac:e2:d3:06:c8:25": {
+    "name": "Chrome - OfficeTV"
+  },
+  "6c:ad:f8:36:84:dd": {
+    "name": "Chrome OfficeTV"
+  },
+  "ac:e2:d3:10:cc:5c": {
+    "name": "Ring - Garage"
+  },
+  "c8:5b:76:c1:58:a7": {
+    "name": "Workstation 4"
+  },
+  "cc:2f:71:1b:48:06": {
+    "name": "Ubunutu Server"
+  },
+  "1a:e8:38:d6:fe:b1": {
+    "name": "Docker Subnet"
+  },
+  "0c:cf:89:f7:12:88": {
+    "name": "Reolink - Milo"
+  },
+  "7c:78:b2:93:9a:e5": {
+    "name": "Wyze - Front"
+  },
+  "c2:fe:f0:13:62:10": {
+    "name": "Tablet - Nikki A9"
+  },
+  "00:11:32:0d:ac:08": {
+    "name": "NAS01"
+  },
+  "c0:bd:c8:be:e2:d1": {
+    "name": "Tablet - Granma"
+  },
+  "46:7a:ce:52:44:c8": {
+    "name": "Nikki A13"
+  },
+  "62:d7:83:46:21:43": {
+    "name": "USW03"
+  },
+  "56:6d:1d:1e:ad:dd": {
+    "name": "VPNX"
+  },
+  "4e:91:57:84:ba:0c": {
+    "name": "Ubunutu-server"
+  },
+  "00:04:4b:4b:90:95": {
+    "name": "Grandma - Shield"
+  },
+  "00:04:4b:a3:cf:91": {
+    "name": "Master - Shield"
+  },
+  "c8:05:a4:35:5d:d5": {
+    "name": "Jason - Tablet"
+  },
+  "c6:e2:20:b9:64:6b": {
+    "name": "Jonathan - Tablet"
+  },
+  "da:c1:e2:ff:30:d6": {
+    "name": "Phone - Grandma"
+  },
+  "0c:c4:13:36:be:9a": {
+    "name": "Phone - Jeremy"
+  },
+  "fa:8d:e0:ad:66:66": {
+    "name": "Phone - Jeremy"
+  },
+  "b4:fb:e4:8a:c7:d7": {
+    "name": "USG"
+  }
+}

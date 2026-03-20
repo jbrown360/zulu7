@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>Dockhand - Zulu7 Docker Integration</title>
+    <!-- Load Dygraphs from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.css" />
+    <style>
+        :root {
+            --accent-color: #344E41;
+            /* Zulu Green */
+            --bg-dark: #0d0d12;
+            --glass-bg: rgba(20, 20, 25, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --zulu-orange: #853d1a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #999;
+        }
+
+        .chart-wrapper {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        /* --- Searchable Header --- */
+        .chart-header {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 4px 8px;
+            position: relative;
+            z-index: 100;
+            background: rgba(13, 13, 18, 0.45) !important;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            width: 100%;
+        }
+
+        .setup-select {
+            background: #08080a;
+            border: 1px solid var(--border-color);
+            color: #888;
+            font-size: 0.75rem;
+            padding: 4px 24px 4px 6px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23344E41' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        .setup-select:hover,
+        .setup-select:focus {
+            border-color: var(--zulu-orange);
+        }
+
+        .setup-select.metric {
+            width: 90px;
+        }
+
+        .setup-select.window {
+            width: 60px;
+        }
+
+        /* --- Search Container --- */
+        .search-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            align-items: center;
+        }
+
+        .search-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            color: #888;
+            font-size: 0.85rem;
+            padding: 4px 0;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-bottom-color: var(--zulu-orange);
+        }
+
+        .search-input::placeholder {
+            color: #444;
+        }
+
+        .search-overlay {
+            position: absolute;
+            top: 4px;
+            left: 0;
+            pointer-events: none;
+            font-size: 0.85rem;
+            display: flex;
+            gap: 6px;
+            z-index: 5;
+            transition: opacity 0.2s;
+        }
+
+        .input-server-label {
+            color: var(--zulu-orange);
+            font-weight: 800;
+        }
+
+        .input-chart-label {
+            color: #ccc;
+            font-weight: 400;
+        }
+
+        .search-container.typing .search-overlay,
+        .search-container.active .search-overlay {
+            opacity: 0;
+        }
+
+        .search-container:not(.typing):not(.active) .search-input {
+            color: transparent;
+        }
+
+        /* --- Dropdown Results --- */
+        .results-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            max-height: 300px;
+            background: #08080a;
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.8);
+            overflow-y: auto;
+            display: none;
+            list-style: none;
+            margin-top: 8px;
+            border-radius: 6px;
+            z-index: 1000;
+        }
+
+        .results-list.active {
+            display: block;
+        }
+
+        .result-item {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: flex-start;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .result-item:hover {
+            background: rgba(249, 115, 22, 0.15);
+        }
+
+        .result-item.selected {
+            background: rgba(249, 115, 22, 0.1);
+        }
+
+        .metric-name {
+            color: #888;
+            font-weight: 500;
+        }
+
+        .server-tag {
+            font-size: 0.65rem;
+            color: var(--zulu-orange);
+            opacity: 0.9;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .result-item:hover .metric-name {
+            color: #999;
+        }
+
+        /* --- Chart Area --- */
+        #chart-div {
+            flex: 1;
+            width: 100%;
+            height: 0;
+            min-height: 0;
+        }
+
+        .dygraph-axis-label {
+            color: #888 !important;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        /* --- Hover Values --- */
+        .chart-values {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            min-width: 140px;
+        }
+
+        .value-item {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #999;
+        }
+
+        .tooltip-time {
+            color: #888;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+            font-size: 0.9rem;
+        }
+
+        /* --- Crosshairs --- */
+        .crosshair {
+            position: absolute;
+            background: rgba(0, 230, 118, 0.15);
+            pointer-events: none;
+            z-index: 40;
+            display: none;
+        }
+
+        #crosshair-v {
+            width: 1px;
+            top: 0;
+            bottom: 0;
+        }
+
+        #crosshair-h {
+            height: 1px;
+            left: 0;
+            right: 0;
+        }
+
+        /* --- Background Watermark --- */
+        .chart-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            z-index: 0;
+            user-select: none;
+            text-align: center;
+        }
+
+        .watermark-top {
+            font-size: clamp(0.5rem, 8vw, 15rem);
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.08);
+            text-transform: uppercase;
+            letter-spacing: -0.05em;
+            line-height: 0.8;
+            max-width: 95%;
+            white-space: nowrap;
+        }
+
+        .watermark-bottom {
+            font-size: clamp(0.4rem, 2.5vw, 8rem);
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.08);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 4px;
+        }
+
+        /* --- Value Display --- */
+        .value-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        .metric-value-label {
+            font-size: clamp(1rem, 6vw, 3.5rem);
+            font-weight: 800;
+            color: #999;
+            text-transform: uppercase;
+            opacity: 0.6;
+        }
+
+        .metric-value-text {
+            font-size: clamp(1.2rem, 15vw, 12rem);
+            font-weight: 900;
+            color: #853d1a;
+            text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            line-height: 0.9;
+        }
+
+        /* Fullscreen Overrides */
+        body.is-fullscreen .chart-header {
+            display: none !important;
+        }
+
+        body.is-fullscreen .debug-stats {
+            bottom: 20px;
+            left: 20px;
+        }
+
+        .status-msg {
+            position: absolute;
+            bottom: 8px;
+            right: 8px;
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--accent-color);
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chart-wrapper">
+        <div id="crosshair-v" class="crosshair"></div>
+        <div id="crosshair-h" class="crosshair"></div>
+
+        <div class="chart-header">
+            <div class="header-controls">
+                <select id="time-window" class="setup-select window" title="Select Time Range">
+                    <option value="60000">1m</option>
+                    <option value="300000">5m</option>
+                    <option value="900000">15m</option>
+                    <option value="3600000">1h</option>
+                </select>
+                <select id="metric" class="setup-select metric" title="Select Metric">
+                    <option value="cpu">CPU %</option>
+                    <option value="mem">Memory</option>
+                    <option value="net_rx">Net RX</option>
+                    <option value="net_tx">Net TX</option>
+                    <option value="io_r">IO Read</option>
+                    <option value="io_w">IO Write</option>
+                </select>
+                <div id="search-container" class="search-container">
+                    <div id="search-overlay" class="search-overlay">
+                        <span id="overlay-server" class="input-server-label"></span>
+                        <span id="overlay-chart" class="input-chart-label"></span>
+                    </div>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search containers..."
+                        autocomplete="off">
+                    <ul id="results-list" class="results-list"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="chart-values" class="chart-values"></div>
+        <div id="chart-watermark" class="chart-watermark">
+            <div id="watermark-top" class="watermark-top">DOCKHAND</div>
+            <div id="watermark-bottom" class="watermark-bottom">DOCKER MONITOR</div>
+        </div>
+
+        <div id="value-display" class="value-display"></div>
+
+        <div id="chart-div"></div>
+        <div id="status" class="status-msg">STABLE</div>
+        <div id="debug-stats"
+            style="position: absolute; bottom: 8px; left: 8px; font-family: monospace; font-size: 9px; color: rgba(255,255,255,0.3); pointer-events: none; white-space: pre;">
+        </div>
+    </div>
+
+    <script>
+        // --- MULTI-SERVER CONFIGURATION ---
+        const DOCKHAND_SERVERS = [
+            { name: "XYZ", host: "192.168.1.40:2376" },
+            { name: "Portait", host: "192.168.1.242:2376" },
+            { name: "VPN Dock", host: "192.168.1.103:2376" },
+            { name: "HomeAS", host: "192.168.1.117:2376" }
+        ];
+
+        const STORAGE_KEY = `zulu7_dockhand_v2_${window.name || 'default'}`;
+        const MAX_POINTS = 2000;
+
+        // Settings
+        let settings = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+            host: DOCKHAND_SERVERS[0].host,
+            serverName: DOCKHAND_SERVERS[0].name,
+            containerId: '',
+            containerName: 'Select Container',
+            metric: 'cpu',
+            windowMs: 60000
+        };
+
+        const metricEl = document.getElementById('metric');
+        const timeEl = document.getElementById('time-window');
+        const searchInput = document.getElementById('search-input');
+        const searchContainer = document.getElementById('search-container');
+        const resultsList = document.getElementById('results-list');
+        const overlayServer = document.getElementById('overlay-server');
+        const overlayChart = document.getElementById('overlay-chart');
+        const valueDisplay = document.getElementById('value-display');
+        const watermarkTop = document.getElementById('watermark-top');
+        const watermarkBottom = document.getElementById('watermark-bottom');
+        const legendEl = document.getElementById('chart-values');
+        const vLine = document.getElementById('crosshair-v');
+        const hLine = document.getElementById('crosshair-h');
+        const statusEl = document.getElementById('status');
+        const debugEl = document.getElementById('debug-stats');
+
+        // Initial UI State
+        metricEl.value = settings.metric;
+        timeEl.value = settings.windowMs;
+
+        let dataPoints = [];
+        let g = null;
+        let pollTimer = null;
+        let lastStats = null;
+        let allContainers = []; // { server: {}, container: {} }
+        let isFetching = false;
+
+        function saveSettings() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+        }
+
+        async function fetchAllContainers() {
+            if (isFetching) return;
+            isFetching = true;
+            statusEl.textContent = "REFRESHING...";
+            renderResults(); // Update results list to show loading state
+
+            const results = await Promise.allSettled(DOCKHAND_SERVERS.map(async (server) => {
+                try {
+                    // Fetch Host Info for Host Name
+                    const infoRes = await fetch(`/api/docker-proxy?target=${server.host}&path=/info`);
+                    let hostName = server.name;
+                    if (infoRes.ok) {
+                        const info = await infoRes.json();
+                        hostName = info.Name || server.name;
+                    }
+
+                    // Fetch Containers
+                    const res = await fetch(`/api/docker-proxy?target=${server.host}&path=/containers/json`);
+                    if (!res.ok) throw new Error();
+                    const containers = await res.json();
+
+                    const list = containers.map(c => ({
+                        server: { ...server, actualName: hostName },
+                        id: c.Id,
+                        name: c.Names[0].replace('/', ''),
+                        fullName: c.Names[0].replace('/', ''),
+                        isHost: false
+                    }));
+
+
+                    return list;
+                } catch (e) {
+                    console.error("Failed to fetch from", server.name, server.host, e);
+                    return [];
+                }
+            }));
+
+            allContainers = results
+                .filter(r => r.status === 'fulfilled')
+                .flatMap(r => r.value)
+                .sort((a, b) => a.server.name.localeCompare(b.server.name) || a.name.localeCompare(b.name));
+
+            // If current selection is invalid or 'host', select first one
+            if ((!settings.containerId || settings.containerId === 'host') && allContainers.length > 0) {
+                const first = allContainers[0];
+                settings.host = first.server.host;
+                settings.serverName = first.server.name;
+                settings.containerId = first.id;
+                settings.containerName = first.fullName;
+                saveSettings();
+                updateOverlay();
+                poll();
+            }
+
+            isFetching = false;
+            const successCount = results.filter(r => r.status === 'fulfilled' && r.value.length > 0).length;
+            statusEl.textContent = `STABLE (${successCount}/${DOCKHAND_SERVERS.length} UP)`;
+            // If we are currently focused, update the view
+            if (resultsList.classList.contains('active')) {
+                renderResults(searchInput.value === `${settings.serverName} ${settings.containerName}` ? "" : searchInput.value);
+            }
+        }
+
+        function renderResults(query = "") {
+            if (isFetching && allContainers.length === 0) {
+                resultsList.innerHTML = `<li class="result-item" style="color: #888; cursor: default;">Fetching containers from ${DOCKHAND_SERVERS.length} servers...</li>`;
+                return;
+            }
+
+            const terms = query.toLowerCase().split(' ').filter(t => t.length > 0);
+            const filtered = allContainers.filter(item => {
+                const searchStr = `${item.server.name} ${item.server.actualName} ${item.name} ${item.fullName}`.toLowerCase();
+                if (terms.length === 0) return true;
+                return terms.every(term => searchStr.includes(term));
+            });
+
+            resultsList.innerHTML = filtered.map(item => `
+                <li class="result-item ${item.id === settings.containerId && item.server.host === settings.host ? 'selected' : ''}" 
+                    data-id="${item.id}" 
+                    data-host="${item.server.host}" 
+                    data-sname="${item.server.name}"
+                    data-cname="${item.fullName}">
+                    <span class="server-tag">${item.server.name.toUpperCase()}</span>
+                    <span class="metric-name" style="${item.isHost ? 'color: #999; font-weight: 700;' : ''}">${item.fullName}</span>
+                </li>
+            `).join('');
+        }
+
+        function updateOverlay() {
+            overlayServer.textContent = settings.serverName.toUpperCase();
+            overlayChart.textContent = settings.containerName;
+            watermarkTop.textContent = settings.containerName.replace('Host: ', '');
+            watermarkBottom.textContent = settings.metric.toUpperCase();
+            searchInput.value = `${settings.serverName} ${settings.containerName}`;
+        }
+
+        // Search Events
+        searchInput.addEventListener('focus', () => {
+            renderResults(""); // Show ALL on focus
+            searchInput.select();
+            resultsList.classList.add('active');
+            searchContainer.classList.add('active');
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            renderResults(e.target.value);
+            resultsList.classList.add('active');
+            if (e.target.value) {
+                searchContainer.classList.add('typing');
+            } else {
+                searchContainer.classList.remove('typing');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-container')) {
+                resultsList.classList.remove('active');
+                searchContainer.classList.remove('active', 'typing');
+                updateOverlay();
+            }
+        });
+
+        resultsList.addEventListener('click', (e) => {
+            const item = e.target.closest('.result-item');
+            if (item) {
+                settings.host = item.dataset.host;
+                settings.serverName = item.dataset.sname;
+                settings.containerId = item.dataset.id;
+                settings.containerName = item.dataset.cname;
+
+                saveSettings();
+                updateOverlay();
+                resultsList.classList.remove('active');
+                searchContainer.classList.remove('active', 'typing');
+
+                if (g) {
+                    g.destroy();
+                    g = null;
+                }
+                dataPoints = [];
+                lastStats = null;
+
+                // Immediately poll to get first point
+                poll();
+            }
+        });
+
+        function formatNumber(val, metric) {
+            if (val === null || val === undefined) return '0';
+            if (metric === 'cpu') return val.toFixed(1) + '%';
+            const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+            let i = 0;
+            while (val >= 1024 && i < units.length - 1) {
+                val /= 1024;
+                i++;
+            }
+            return val.toFixed(1) + units[i] + (metric.includes('net') || metric.includes('io') ? '/s' : '');
+        }
+
+        async function poll() {
+            if (!settings.host || !settings.containerId) return;
+
+            try {
+                // 1. Fetch History from Zulu7 Server & Current Stats from Proxy
+                const historyParams = new URLSearchParams({
+                    host: settings.host,
+                    containerId: settings.containerId,
+                    metric: settings.metric
+                });
+                const proxyUrl = `/api/docker-proxy?target=${settings.host}&path=/containers/${settings.containerId}/stats&stream=false`;
+
+                const [hRes, dRes] = await Promise.all([
+                    fetch(`/api/docker-history?${historyParams.toString()}`),
+                    fetch(proxyUrl)
+                ]).catch(err => { throw new Error("Connection failed"); });
+
+                if (!hRes.ok || !dRes.ok) throw new Error("History or Proxy fetch failed");
+
+                const historyData = await hRes.json();
+                const stats = await dRes.json();
+                const serverHistory = historyData.history || [];
+                if (serverHistory.length > 0) {
+                    console.log(`[Dockhand] Merged ${serverHistory.length} points from server history.`);
+                }
+                const now = Date.now();
+
+                // 2. Calculate local delta for the current point
+                let val = 0;
+                if (settings.metric === 'cpu') {
+                    const cpu = stats.cpu_stats || {};
+                    const pre = stats.precpu_stats || lastStats?.cpu_stats || {};
+                    const curUsage = cpu.cpu_usage?.total_usage || cpu.cpu_usage?.usage || 0;
+                    const preUsage = pre.cpu_usage?.total_usage || pre.cpu_usage?.usage || 0;
+                    const curSys = cpu.system_cpu_usage || cpu.system_usage || 0;
+                    const preSys = pre.system_cpu_usage || pre.system_usage || 0;
+                    if (curSys > 0 && preSys > 0) {
+                        const cpuDelta = curUsage - preUsage;
+                        const systemDelta = curSys - preSys;
+                        if (systemDelta > 0 && cpuDelta > 0) val = (cpuDelta / systemDelta) * 100.0;
+                    }
+                } else if (settings.metric === 'mem') {
+                    const mem = stats.memory_stats || {};
+                    const usage = mem.usage || mem.stats?.usage || 0;
+                    const cache = mem.stats?.cache || mem.stats?.inactive_file || mem.stats?.file || 0;
+                    val = Math.max(0, usage - cache);
+                    if (val === 0 && usage > 0) val = mem.stats?.active_anon || usage;
+                } else if (settings.metric.startsWith('net')) {
+                    const isRx = settings.metric === 'net_rx';
+                    let total = 0;
+                    const nets = stats.networks || stats.network || {};
+                    for (const iface in nets) total += isRx ? (nets[iface].rx_bytes || 0) : (nets[iface].tx_bytes || 0);
+                    if (lastStats) {
+                        const prevNets = lastStats.networks || lastStats.network || {};
+                        let prevTotal = 0;
+                        for (const iface in prevNets) prevTotal += isRx ? (prevNets[iface].rx_bytes || 0) : (prevNets[iface].tx_bytes || 0);
+                        if (total >= prevTotal) val = total - prevTotal;
+                    }
+                } else if (settings.metric.startsWith('io')) {
+                    const isRead = settings.metric === 'io_r';
+                    const key = isRead ? 'Read' : 'Write';
+                    const getIO = (s) => {
+                        let t = 0;
+                        const blk = s?.blkio_stats || {};
+                        const entries = blk.io_service_bytes_recursive || blk.io_service_bytes || blk.io_serviced_recursive || [];
+                        entries.forEach(e => { if (e.op === key || e.op?.toLowerCase() === key.toLowerCase()) t += (e.value || 0); });
+                        return t;
+                    };
+                    const total = getIO(stats);
+                    if (lastStats) {
+                        const prevTotal = getIO(lastStats);
+                        if (total >= prevTotal) val = total - prevTotal;
+                    }
+                }
+
+                // 3. Merge and Deduplicate
+                const mergedMap = new Map();
+                // Merge local history
+                dataPoints.forEach(p => mergedMap.set(p[0] instanceof Date ? p[0].getTime() : p[0], p[1]));
+                // Merge server history
+                serverHistory.forEach(([ts, v]) => mergedMap.set(parseInt(ts), parseFloat(v)));
+                // Add current point (only if we have delta context)
+                if (lastStats && !isNaN(val)) mergedMap.set(now, val);
+
+                lastStats = stats;
+
+                // 4. Convert back to sorted array and limit
+                const sorted = Array.from(mergedMap.entries())
+                    .sort((a, b) => a[0] - b[0])
+                    .map(([ts, v]) => [new Date(ts), v]);
+
+                dataPoints = sorted.slice(-MAX_POINTS);
+                render();
+            } catch (err) {
+                console.error("Poll Error:", err);
+                statusEl.textContent = "OFFLINE";
+                statusEl.style.color = "#ff3300";
+            }
+        }
+
+        function render() {
+            if (dataPoints.length === 0) return;
+            const last = dataPoints[dataPoints.length - 1];
+            valueDisplay.innerHTML = `
+                <div class="metric-value-label">${settings.metric.toUpperCase()}</div>
+                <div class="metric-value-text">${formatNumber(last[1], settings.metric)}</div>
+            `;
+
+            if (debugEl) {
+                debugEl.textContent = `${settings.metric.toUpperCase()}: ${last[1].toFixed(4)}`;
+            }
+
+            updateChart();
+        }
+
+        function updateChart() {
+            if (dataPoints.length < 1) return;
+
+            // Normalize data: seconds from newest point
+            const newestTs = dataPoints[dataPoints.length - 1][0];
+            const normalizedData = dataPoints.map(p => [(p[0] - newestTs) / 1000, p[1]]);
+
+            const shouldDrawPoints = dataPoints.length === 1;
+
+            if (!g) {
+                g = new Dygraph(document.getElementById("chart-div"), normalizedData, {
+                    labels: ["Time", settings.metric],
+                    colors: ["#344E41"], // Zulu Green (SNMP style)
+                    fillGraph: true,
+                    fillAlpha: 0.15,
+                    strokeWidth: 2.5,
+                    drawXAxis: true,
+                    drawYAxis: true,
+                    gridLineColor: 'rgba(255,255,255,0.05)',
+                    axisLineColor: 'transparent',
+                    drawPoints: shouldDrawPoints,
+                    pointSize: 4,
+                    highlightCircleSize: 6,
+                    drawHighlightPointCallback: function (g, name, ctx, cx, cy, color, radius) {
+                        ctx.beginPath();
+                        ctx.fillStyle = "#f97316";
+                        ctx.arc(cx, cy, radius, 0, 2 * Math.PI, false);
+                        ctx.fill();
+                    },
+                    dateWindow: [-settings.windowMs / 1000, 0],
+                    axes: {
+                        x: {
+                            axisLabelFormatter: v => v === 0 ? "Now" : v + "s",
+                            valueFormatter: v => v === 0 ? "Now" : Math.abs(v).toFixed(0) + "s ago"
+                        }
+                    },
+                    highlightCallback: function (e, x, pts) {
+                        legendEl.style.display = 'flex';
+                        const domX = g.toDomXCoord(x);
+                        vLine.style.left = domX + 'px';
+                        vLine.style.display = 'block';
+                        if (pts && pts[0]) {
+                            hLine.style.top = g.toDomYCoord(pts[0].yval) + 'px';
+                            // Hide horizontal line if more than one metric is displayed
+                            hLine.style.display = pts.length > 1 ? 'none' : 'block';
+                            legendEl.innerHTML = `
+                                <div class="value-item">${formatNumber(pts[0].yval, settings.metric)}</div>
+                                <div class="tooltip-time">${Math.abs(x).toFixed(0)}s ago</div>
+                            `;
+                        }
+                    },
+                    unhighlightCallback: () => {
+                        legendEl.style.display = 'none';
+                        vLine.style.display = 'none';
+                        hLine.style.display = 'none';
+                    }
+                });
+            } else {
+                g.updateOptions({
+                    file: normalizedData,
+                    labels: ["Time", settings.metric],
+                    drawXAxis: true,
+                    drawYAxis: true,
+                    drawPoints: shouldDrawPoints,
+                    pointSize: 4,
+                    dateWindow: [-settings.windowMs / 1000, 0]
+                });
+            }
+        }
+
+        const TIME_STEPS = [
+            1 * 60 * 1000,       // 1m
+            5 * 60 * 1000,       // 5m
+            15 * 60 * 1000,      // 15m
+            30 * 60 * 1000,      // 30m
+            60 * 60 * 1000,      // 1h
+            24 * 60 * 60 * 1000, // 1d
+            3 * 24 * 60 * 60 * 1000, // 3d
+            7 * 24 * 60 * 60 * 1000  // 7d
+        ];
+
+        // Global Listeners
+        metricEl.addEventListener('change', () => {
+            settings.metric = metricEl.value;
+            updateOverlay();
+            if (g) {
+                g.destroy();
+                g = null;
+            }
+            dataPoints = [];
+            lastStats = null;
+            poll();
+            saveSettings();
+        });
+
+        timeEl.addEventListener('change', () => {
+            settings.windowMs = parseInt(timeEl.value);
+            if (g) {
+                g.updateOptions({ dateWindow: [-settings.windowMs / 1000, 0] });
+            }
+            saveSettings();
+        });
+
+        document.querySelector('.chart-wrapper').addEventListener('mousemove', (e) => {
+            if (legendEl && legendEl.style.display === 'flex') {
+                const padding = 15;
+                let lx = e.clientX + padding;
+                let ly = e.clientY + padding;
+                const box = legendEl.getBoundingClientRect();
+                if (lx + box.width > window.innerWidth) lx = e.clientX - box.width - padding;
+                if (ly + box.height > window.innerHeight) ly = e.clientY - box.height - padding;
+                legendEl.style.left = lx + 'px';
+                legendEl.style.top = ly + 'px';
+            }
+        });
+
+        document.querySelector('.chart-wrapper').addEventListener('wheel', (e) => {
+            if (e.target.closest('.results-list')) return; // Allow scrolling the search results list
+            e.preventDefault();
+            // Find closest index
+            let currentIndex = 0;
+            let minDiff = Infinity;
+            TIME_STEPS.forEach((step, idx) => {
+                const diff = Math.abs(step - settings.windowMs);
+                if (diff < minDiff) {
+                    minDiff = diff;
+                    currentIndex = idx;
+                }
+            });
+
+            if (e.deltaY > 0) {
+                // Scroll down -> Zoom OUT (Expand time)
+                currentIndex = Math.min(TIME_STEPS.length - 1, currentIndex + 1);
+            } else {
+                // Scroll up -> Zoom IN (Compress time)
+                currentIndex = Math.max(0, currentIndex - 1);
+            }
+
+            settings.windowMs = TIME_STEPS[currentIndex];
+            timeEl.value = settings.windowMs;
+            saveSettings();
+
+            if (g) {
+                g.updateOptions({ dateWindow: [-settings.windowMs / 1000, 0] });
+            }
+        }, { passive: false });
+
+        function startPolling() {
+            if (pollTimer) clearInterval(pollTimer);
+
+            if (document.visibilityState === 'visible') {
+                poll(); // Initial poll
+            }
+
+            pollTimer = setInterval(() => {
+                if (document.visibilityState === 'visible') poll();
+            }, 5000); // Consistent 5s poll
+        }
+
+        // Hibernation & Catch-up logic
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                console.log("[Dockhand] Visible: Catching up...");
+                poll();
+                startPolling();
+            } else {
+                console.log("[Dockhand] Hidden: Hibernating...");
+                if (pollTimer) clearInterval(pollTimer);
+            }
+        });
+
+        statusEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fetchAllContainers();
+            poll(); // Immediate poll on status click
+        });
+
+        // REQUEST FULLSCREEN from Parent
+        document.querySelector('.chart-wrapper').addEventListener('click', (e) => {
+            // Only if we're not clicking a select, input, or results list
+            if (!e.target.closest('select') && !e.target.closest('input') && !e.target.closest('.results-list') && !e.target.closest('.status-msg')) {
+                window.parent.postMessage('zulu7-request-fullscreen', '*');
+            }
+        });
+
+        // HANDLE FULLSCREEN from Parent
+        window.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'zulu7-fullscreen-state') {
+                if (event.data.isActive) {
+                    document.body.classList.add('is-fullscreen');
+                } else {
+                    document.body.classList.remove('is-fullscreen');
+                }
+                // Force an immediate resize
+                if (g) {
+                    g.resize();
+                    setTimeout(() => g.resize(), 50);
+                    setTimeout(() => g.resize(), 300);
+                }
+            }
+        });
+
+        // Init
+        updateOverlay();
+        fetchAllContainers();
+        startPolling();
+
+        window.addEventListener('resize', () => g && g.resize());
+    </script>
+</body>
+
+</html>

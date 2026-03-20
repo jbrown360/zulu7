@@ -114,10 +114,16 @@ const WeatherWidget = ({ data, isLocked }) => {
     }, [searchTerm, unit, getCachedData, CACHE_KEY]);
 
     useEffect(() => {
-        fetchWeather();
-        const interval = setInterval(fetchWeather, 60 * 60 * 1000); // 1 Hour
+        if (isVisible && document.visibilityState === 'visible') {
+            fetchWeather();
+        }
+        const interval = setInterval(() => {
+            if (isVisible && document.visibilityState === 'visible') {
+                fetchWeather();
+            }
+        }, 60 * 60 * 1000); // 1 Hour
         return () => clearInterval(interval);
-    }, [fetchWeather]);
+    }, [fetchWeather, isVisible]);
 
     // Local City Clock Logic (1s Updates for World Clock feel)
     useEffect(() => {
@@ -145,14 +151,14 @@ const WeatherWidget = ({ data, isLocked }) => {
 
     // Helpers
     const getWeatherIcon = (code, size = 24, className = "") => {
-        const props = { size, className };
-        if (code === 0) return <Sun {...props} className={`${className} text-orange-400`} />;
-        if (code >= 1 && code <= 3) return <Cloud {...props} className={`${className} text-orange-400`} />;
-        if (code >= 45 && code <= 48) return <CloudFog {...props} className={`${className} text-orange-500`} />;
-        if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return <CloudRain {...props} className={`${className} text-orange-400`} />;
-        if (code >= 71 && code <= 77) return <CloudSnow {...props} className={`${className} text-orange-100/80`} />;
-        if (code >= 95) return <CloudLightning {...props} className={`${className} text-orange-500`} />;
-        return <Sun {...props} className={`${className} text-orange-400`} />;
+        const props = { size, className, color: "#f97316" };
+        if (code === 0) return <Sun {...props} />;
+        if (code >= 1 && code <= 3) return <Cloud {...props} />;
+        if (code >= 45 && code <= 48) return <CloudFog {...props} />;
+        if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return <CloudRain {...props} />;
+        if (code >= 71 && code <= 77) return <CloudSnow size={size} className={`${className} text-orange-100/80`} />;
+        if (code >= 95) return <CloudLightning {...props} />;
+        return <Sun {...props} />;
     };
 
     const formatTime = (isoString) => {
@@ -239,7 +245,14 @@ const WeatherWidget = ({ data, isLocked }) => {
             {/* Header Controls (Always Top Right) */}
             {isLocked && (
                 <div className="absolute top-1.5 right-3.5 z-50 flex items-center space-x-2">
-                    <button onClick={fetchWeather} className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-white/70 hover:text-orange-500 transition-colors cursor-pointer" title="Refresh Widget"><RefreshCw size={14} /></button>
+                    <button
+                        onClick={fetchWeather}
+                        style={{ '--hover-color': '#f97316' }}
+                        className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-white/70 hover:text-[var(--hover-color)] transition-colors cursor-pointer"
+                        title="Refresh Widget"
+                    >
+                        <RefreshCw size={14} />
+                    </button>
                 </div>
             )}
 
@@ -258,20 +271,20 @@ const WeatherWidget = ({ data, isLocked }) => {
                     {/* Metrics - Temperature & Feels Like */}
                     <div className="flex flex-col items-start">
                         <div className="flex items-start">
-                            <span className="text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tight leading-none drop-shadow-2xl tabular-nums">
+                            <span style={{ color: '#999' }} className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-none drop-shadow-2xl tabular-nums">
                                 {Math.round(current.temperature_2m)}
                             </span>
-                            <span className="text-base md:text-xl font-bold text-orange-500 mt-0.5 ml-0.5 md:ml-1">°</span>
+                            <span style={{ color: '#f97316' }} className="text-base md:text-xl font-bold mt-0.5 ml-0.5 md:ml-1">°</span>
                         </div>
                         {/* Feels Like - Scaled prominence */}
-                        <div className="text-[9px] md:text-xs font-black text-white/40 tracking-[0.15em] uppercase mt-0.5 md:mt-1 whitespace-nowrap">
+                        <div style={{ color: '#999' }} className="text-[9px] md:text-xs font-black opacity-40 tracking-[0.15em] uppercase mt-0.5 md:mt-1 whitespace-nowrap">
                             Feels {Math.round(current.apparent_temperature)}°
                         </div>
                     </div>
                 </div>
 
                 {/* City Title as Divider Replacement */}
-                <div className="mt-2.5 text-[11px] md:text-[14px] font-black tracking-[0.2em] text-orange-500/80 uppercase truncate drop-shadow-md" title={locationName}>
+                <div className="mt-2.5 text-[11px] md:text-[14px] font-black tracking-[0.2em] uppercase truncate drop-shadow-md" style={{ color: 'rgba(249, 115, 22, 0.8)' }} title={locationName}>
                     {locationName}
                 </div>
 
@@ -279,10 +292,10 @@ const WeatherWidget = ({ data, isLocked }) => {
                 <div className="flex flex-col items-center mt-1 w-full max-w-[140px] md:max-w-[180px]">
                     {localTime && (
                         <div className="flex items-baseline space-x-1.5 font-digital digital-glow">
-                            <span className="text-xl md:text-2xl lg:text-3xl font-medium text-white/90 tabular-nums tracking-wider">
+                            <span style={{ color: '#999' }} className="text-xl md:text-2xl lg:text-3xl font-medium tabular-nums tracking-wider opacity-90">
                                 {localTime.split(' ')[0]}
                             </span>
-                            <span className="text-[9px] md:text-[10px] font-bold text-orange-500 uppercase tracking-widest opacity-90">
+                            <span className="text-[9px] md:text-[10px] font-bold uppercase tracking-widest opacity-90" style={{ color: '#f97316' }}>
                                 {localTime.split(' ')[1]}
                             </span>
                         </div>

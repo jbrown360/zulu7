@@ -2,6 +2,17 @@
 <html lang="en">
 
 <head>
+  <script type="module">import { injectIntoGlobalHook } from "/@react-refresh";
+injectIntoGlobalHook(window);
+window.$RefreshReg$ = () => {};
+window.$RefreshSig$ = () => (type) => type;</script>
+
+  <script type="module" src="/@vite/client"></script>
+
+  <script type="module" src="/integrations/netdata.html?html-proxy&index=0.js"></script>
+
+  <script type="module" src="/@vite/client"></script>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="color-scheme" content="dark">
@@ -30,7 +41,7 @@
             background: transparent !important;
             overflow: hidden;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: #eee;
+            color: #999;
         }
 
         .chart-wrapper {
@@ -82,7 +93,8 @@
             cursor: pointer;
             transition: all 0.3s ease;
             font-weight: 600;
-            appearance: none;
+            -moz-appearance: none;
+                 appearance: none;
             -webkit-appearance: none;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23344E41' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
             background-repeat: no-repeat;
@@ -115,6 +127,11 @@
 
         .search-input:focus {
             border-bottom-color: var(--accent-color);
+        }
+
+        .search-input::-moz-placeholder {
+            color: #444;
+            font-weight: 400;
         }
 
         .search-input::placeholder {
@@ -212,7 +229,7 @@
         }
 
         .result-item:hover {
-            background: rgba(249, 115, 22, 0.1);
+            background: rgba(249, 115, 22, 0.15);
         }
 
         .result-item.selected {
@@ -233,7 +250,7 @@
         }
 
         .result-item:hover .metric-name {
-            color: #fff;
+            color: #999;
         }
 
         .result-item.selected .metric-name {
@@ -266,7 +283,7 @@
         .chart-value-item {
             font-size: 1.1rem;
             font-weight: 700;
-            color: #fff;
+            color: #999;
             padding: 2px 0;
             white-space: nowrap;
         }
@@ -329,10 +346,12 @@
             gap: 1.5rem;
             /* More space between server and chart names */
             pointer-events: none !important;
-            z-index: 0;
+            z-index: 100;
             opacity: 1;
             /* Always visible */
-            user-select: none;
+            -webkit-user-select: none;
+               -moz-user-select: none;
+                    user-select: none;
             text-align: center;
             width: 100%;
             padding: 0 2.5rem;
@@ -344,8 +363,9 @@
             font-size: clamp(1.2rem, 6vw, 8rem);
             /* Refined scaling */
             font-weight: 800;
-            color: rgba(255, 255, 255, 0.08);
-            /* Matched brightness */
+            color: #853d1a;
+            opacity: 0.6;
+            /* Muted orange */
             text-transform: uppercase;
             letter-spacing: 0.2em;
             line-height: 1;
@@ -355,8 +375,9 @@
             font-size: clamp(2rem, 10vw, 15rem);
             /* Refined scaling to fill ~80% with padding */
             font-weight: 900;
-            color: rgba(255, 255, 255, 0.08);
-            /* Brighter and more distinct */
+            color: #cccccc;
+            opacity: 0.2;
+            /* Clear grey - matched to speedtest/gauge hierarchy */
             text-transform: uppercase;
             letter-spacing: -0.05em;
             line-height: 0.7;
@@ -371,12 +392,15 @@
         .chart-watermark.large .watermark-server {
             font-size: clamp(3rem, 12vw, 18rem);
             /* Massively increased to target 80% width when no component label */
-            color: rgba(255, 255, 255, 0.06);
+            color: #853d1a;
+            opacity: 0.5;
+            /* Muted orange */
         }
 
         .chart-watermark.large .watermark-chart {
             font-size: clamp(2.5rem, 10vw, 15rem);
-            color: rgba(255, 255, 255, 0.06);
+            color: #cccccc;
+            opacity: 0.15;
         }
 
         /* Removed hover-only opacity - watermarks are always visible */
@@ -465,6 +489,7 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 90%;
+            height: -moz-fit-content;
             height: fit-content;
             max-height: 85%;
             z-index: 10;
@@ -493,10 +518,10 @@
         .metric-value-label {
             font-size: clamp(1rem, 6vw, 3.5rem);
             font-weight: 800;
-            color: #f97316;
+            color: #999;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            opacity: 0.9;
+            opacity: 0.6;
             text-align: left;
             padding-right: 0.8em;
             white-space: nowrap;
@@ -505,7 +530,7 @@
         .metric-value-text {
             font-size: clamp(1.2rem, 10vw, 6rem);
             font-weight: 900;
-            color: #fff;
+            color: #853d1a;
             letter-spacing: -0.02em;
             text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
             text-align: left;
@@ -554,22 +579,47 @@
         }
 
         .gauge-value-text {
-            fill: #fff;
+            fill: #999;
             font-size: 26px;
             font-weight: 900;
             text-anchor: middle;
             font-family: inherit;
             letter-spacing: -0.02em;
+            opacity: 0.6;
+            /* Matched Speedtest opacity */
         }
 
         .gauge-label-text {
-            fill: #f97316;
+            fill: #999;
             font-size: 7px;
             font-weight: 800;
             text-anchor: middle;
             text-transform: uppercase;
             letter-spacing: 0.15em;
             font-family: inherit;
+            opacity: 0.6;
+        }
+
+        .gauge-server-text {
+            fill: #853d1a;
+            font-size: 5.5px;
+            font-weight: 900;
+            text-anchor: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-family: inherit;
+            opacity: 0.95;
+        }
+
+        .metric-server-text {
+            color: #853d1a;
+            font-size: clamp(0.8rem, 4vw, 2rem);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.8;
+            margin-top: 0.5rem;
+            text-align: left;
         }
     </style>
 </head>
@@ -611,8 +661,8 @@
 
         <div id="chart-values" class="chart-values"></div>
         <div id="chart-watermark" class="chart-watermark">
-            <div id="watermark-server" class="watermark-server"></div>
             <div id="watermark-chart" class="watermark-chart"></div>
+            <div id="watermark-server" class="watermark-server"></div>
         </div>
         <div id="value-display" class="value-display"></div>
         <div id="gauge-container" class="gauge-container" style="display: none;"></div>
@@ -631,6 +681,7 @@
             { name: "Portait", host: "http://192.168.1.242:19999" }, // Template
             { name: "Workstation", host: "http://192.168.1.230:19999" }, // Template
             { name: "Ntop", host: "http://192.168.1.95:19999" }, // Template
+            { name: "xyz", host: "http://192.168.1.40:19999" }, // Template
             { name: "Echo", host: "http://192.168.1.12:19999" }, // Template
             { name: "Dev-VM", host: "http://192.168.1.111:19999" } // Template
         ];
@@ -704,7 +755,7 @@
 
         // SVG Gauge Update Function
         let gaugePeak = 0;
-        function updateGauge(value, min, max, label) {
+        function updateGauge(value, min, max, label, serverName) {
             const container = document.getElementById('gauge-container');
             if (!container) return;
 
@@ -719,12 +770,12 @@
             const offset = circumference - (percent / 100) * circumference;
             const peakOffset = circumference - (gaugePeak / 100) * circumference;
 
-            // --- High-Tech Status Colors ---
-            let mainColor = "#00ff88"; // Vivid Tech Green
+            // --- High-Tech Status Colors (Dimmed for TV) ---
+            let mainColor = "#2d6a4f"; // Muted Emerald
             if (percent >= 80) {
-                mainColor = "#ff3300"; // Critical Tech Red
+                mainColor = "#7f1d1d"; // Muted Crimson
             } else if (percent >= 40) {
-                mainColor = "#ffee00"; // Warning Cyber Yellow
+                mainColor = "#9e7e00"; // Muted Gold
             }
 
             // Generate ticks for 0, 25, 50, 75, 100
@@ -771,8 +822,9 @@
                           filter="url(#gaugeGlow)"
                           style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};" />
                     ${ticks}
-                    <text x="50" y="48" class="gauge-value-text">${value.toFixed(1)}</text>
-                    <text x="50" y="60" class="gauge-label-text">${label}</text>
+                    <text x="50" y="44" class="gauge-value-text">${value.toFixed(1)}</text>
+                    <text x="50" y="52" class="gauge-label-text">${label}</text>
+                    <text x="50" y="58" class="gauge-server-text">${serverName}</text>
                 </svg>
             `;
         }
@@ -782,6 +834,56 @@
         let fetchInterval = null;
         let currentNewestTs = 0;
         let latestData = null; // Store for custom tooltips
+
+        // Named Callbacks for Dygraphs
+        function ndHighlight(e, x, pts, row) {
+            if (selection.graphType === 'gauge') return;
+            const canvasX = pts[0].canvasx;
+            const canvasY = pts[0].canvasy;
+            vLine.style.left = (canvasX + chartDiv.offsetLeft) + "px";
+            hLine.style.top = (canvasY + chartDiv.offsetTop) + "px";
+            vLine.style.display = "block";
+            // Hide horizontal line if more than one metric is displayed
+            hLine.style.display = pts.length > 1 ? 'none' : 'block';
+
+            const padding = 15;
+            let lx = e.clientX + padding;
+            let ly = e.clientY + padding;
+            const box = legendEl.getBoundingClientRect();
+            if (box.width > 0) {
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+                if (lx + box.width > winW) lx = e.clientX - box.width - padding;
+                if (ly + box.height > winH) ly = e.clientY - box.height - padding;
+                legendEl.style.left = lx + 'px';
+                legendEl.style.top = ly + 'px';
+                legendEl.style.display = 'flex';
+            }
+        }
+
+        function ndUnhighlight(e) {
+            vLine.style.display = 'none';
+            hLine.style.display = 'none';
+            if (selection.graphType !== 'gauge') {
+                legendEl.style.display = 'none';
+            }
+        }
+
+        // UI & Crosshair Elements (Global Scope)
+        const chartDiv = document.getElementById("chart-div");
+        const legendEl = document.getElementById('chart-values');
+        const vLine = document.getElementById('crosshair-v');
+        const hLine = document.getElementById('crosshair-h');
+        const mainWrapper = document.querySelector('.chart-wrapper');
+        const timeEl = document.getElementById('time-window');
+        const typeEl = document.getElementById('graph-type');
+        const inputEl = document.getElementById('search-input');
+        const listEl = document.getElementById('results-list');
+        const valueDisplay = document.getElementById('value-display');
+        const gaugeContainer = document.getElementById('gauge-container');
+        const errorEl = document.getElementById('error-msg');
+        const searchContainer = document.getElementById('search-container');
+        const overlayServer = document.getElementById('overlay-server');
 
         // Persistence State (Loaded on load)
         let selection = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
@@ -793,13 +895,6 @@
             gaugeDimensionIndex: 0
         };
 
-        const inputEl = document.getElementById('search-input');
-        const listEl = document.getElementById('results-list');
-        const timeEl = document.getElementById('time-window');
-        const typeEl = document.getElementById('graph-type');
-        const valueDisplay = document.getElementById('value-display');
-        const gaugeContainer = document.getElementById('gauge-container');
-        const errorEl = document.getElementById('error-msg');
 
         // Check for locked mode
         const urlParams = new URLSearchParams(window.location.search);
@@ -810,8 +905,6 @@
 
 
 
-        const searchContainer = document.getElementById('search-container');
-        const overlayServer = document.getElementById('overlay-server');
 
         overlayServer.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -932,41 +1025,36 @@
 
 
         function updateUIVisibility() {
-            const chartDiv = document.getElementById('chart-div');
-            const crosshairV = document.getElementById('crosshair-v');
-            const crosshairH = document.getElementById('crosshair-h');
             const watermark = document.getElementById('chart-watermark');
+            const watermarkServer = document.getElementById('watermark-server');
+            const watermarkChart = document.getElementById('watermark-chart');
 
             // Reset defaults
             valueDisplay.style.display = 'none';
             gaugeContainer.style.display = 'none';
             chartDiv.style.visibility = 'hidden';
             chartDiv.style.opacity = '1';
-            crosshairV.style.display = 'none';
-            crosshairH.style.display = 'none';
+            vLine.style.display = 'none';
+            hLine.style.display = 'none';
             watermark.style.display = 'flex';
             watermark.classList.remove('large');
             timeEl.style.display = 'none';
-            document.getElementById('watermark-chart').style.display = 'block';
+            watermarkChart.style.display = 'block';
+            watermarkServer.style.display = 'block';
 
             if (selection.graphType === 'value') {
                 valueDisplay.style.display = 'flex';
-                watermark.style.display = 'flex';
-                watermark.classList.remove('large');
-                document.getElementById('watermark-chart').style.display = 'none';
+                watermark.style.display = 'none'; // REMOVE EXTRA LABELS
                 chartDiv.style.visibility = 'visible';
-                chartDiv.style.opacity = '0.35';
+                chartDiv.style.opacity = '1';
                 timeEl.style.display = 'block';
             } else if (selection.graphType === 'gauge') {
                 gaugeContainer.style.display = 'flex';
-                watermark.style.display = 'flex';
-                watermark.classList.add('large');
-                document.getElementById('watermark-chart').style.display = 'none';
+                watermark.style.display = 'none'; // REMOVE EXTRA LABELS
             } else {
                 chartDiv.style.visibility = 'visible';
-                document.getElementById('watermark-chart').style.display = 'block';
-                crosshairV.style.display = 'block';
-                crosshairH.style.display = 'block';
+                watermarkChart.style.display = 'block';
+                // DO NOT show crosshairs by default; they show on hover
                 timeEl.style.display = 'block';
             }
 
@@ -1044,7 +1132,12 @@
                         `;
                     }).join('');
 
-                    valueDisplay.innerHTML = `<table class="value-table">${tableRows}</table>`;
+                    valueDisplay.innerHTML = `
+                        <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                            <table class="value-table">${tableRows}</table>
+                            <div class="metric-server-text">${selection.name}</div>
+                        </div>
+                    `;
                 }
 
                 // --- Gauge Mode Update ---
@@ -1067,7 +1160,7 @@
                     else if (selection.chartId.includes('load')) max = Math.max(10, val * 1.5);
                     else if (selection.chartId.includes('mem')) max = 100;
 
-                    updateGauge(val, 0, max, cleanLabel);
+                    updateGauge(val, 0, max, cleanLabel, selection.name);
 
                     if (g) { g.destroy(); g = null; }
                     return;
@@ -1078,12 +1171,23 @@
                 if (!g) {
                     g = new Dygraph(document.getElementById("chart-div"), stableData, {
                         labels: labels,
-                        strokeWidth: selection.graphType === 'bar' ? 1 : 2,
-                        colors: ["#344E41", "#4A6274", "#616F39", "#526D82", "#635C51", "#7D7461", "#A64B2A", "#8E4D40", "#454B54", "#3E432E"],
+                        strokeWidth: selection.graphType === 'bar' ? 1 : 1.2,
+                        colors: [
+                            "rgba(52, 78, 65, 0.7)",  // Muted Forest
+                            "rgba(74, 98, 116, 0.7)", // Muted Slate
+                            "rgba(97, 111, 57, 0.7)", // Muted Olive
+                            "rgba(82, 109, 130, 0.7)",// Muted Steel
+                            "rgba(99, 92, 81, 0.7)",  // Muted Clay
+                            "rgba(125, 116, 97, 0.7)",// Muted Sand
+                            "rgba(166, 75, 42, 0.7)", // Muted Terracotta
+                            "rgba(142, 77, 64, 0.7)", // Muted Brick
+                            "rgba(69, 75, 84, 0.7)",  // Muted Charcoal
+                            "rgba(62, 67, 46, 0.7)"   // Muted Moss
+                        ],
                         fillGraph: selection.graphType === 'area' || selection.graphType === 'stacked' || selection.graphType === 'value',
                         stackedGraph: selection.graphType === 'stacked' || selection.graphType === 'bar',
                         plotter: selection.graphType === 'bar' ? barPlotter : null,
-                        fillAlpha: (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.35 : (selection.graphType === 'value' ? 0.1 : 0.08),
+                        fillAlpha: (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.35 : (selection.graphType === 'value' ? 0.05 : 0.08),
                         drawXAxis: true,
                         drawYAxis: true,
                         gridLineColor: 'rgba(255,255,255,0.05)',
@@ -1092,12 +1196,13 @@
                         highlightCircleSize: 6,
                         drawHighlightPointCallback: function (g, name, ctx, cx, cy, color, radius) {
                             ctx.beginPath();
-                            ctx.fillStyle = "#f97316"; // Zulu Orange
+                            ctx.fillStyle = "rgba(249, 115, 22, 0.5)";
                             ctx.arc(cx, cy, radius, 0, 2 * Math.PI, false);
                             ctx.fill();
                         },
-                        interactionModel: {},
-                        labelsDiv: document.getElementById('chart-values'),
+                        highlightCallback: ndHighlight,
+                        unhighlightCallback: ndUnhighlight,
+                        labelsDiv: legendEl,
                         legend: 'always',
                         dateWindow: [-maxOffset, 0],
                         xAxisHeight: 20,
@@ -1132,7 +1237,7 @@
                             }
                         },
                         legendFormatter: function (data) {
-                            if (data.x === undefined || selection.graphType === 'value') return '';
+                            if (data.x === undefined) return '';
                             // To show real time, we need to map X back to the timestamp
                             const targetTs = (currentNewestTs + data.x) * 1000;
                             const timeStr = new Date(targetTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -1151,7 +1256,7 @@
                         drawXAxis: selection.graphType !== 'value',
                         drawYAxis: selection.graphType !== 'value',
                         gridLineColor: selection.graphType === 'value' ? 'transparent' : 'rgba(255,255,255,0.05)',
-                        highlightCircleSize: selection.graphType === 'value' ? 0 : 6
+                        highlightCircleSize: 6
                     });
                 } else {
                     g.updateOptions({
@@ -1164,7 +1269,7 @@
                         'drawXAxis': selection.graphType !== 'value',
                         'drawYAxis': selection.graphType !== 'value',
                         'gridLineColor': selection.graphType === 'value' ? 'transparent' : 'rgba(255,255,255,0.05)',
-                        'highlightCircleSize': selection.graphType === 'value' ? 0 : 6
+                        'highlightCircleSize': 6
                     });
                 }
             } catch (err) {
@@ -1185,53 +1290,28 @@
             if (g) g.resize();
         });
 
-        // --- Mouse Tracking for Tooltip ---
-        const legendEl = document.getElementById('chart-values');
-        const mainWrapper = document.querySelector('.chart-wrapper');
-        const vLine = document.getElementById('crosshair-v');
-        const hLine = document.getElementById('crosshair-h');
-        const timeSelect = document.getElementById('time-window');
-
+        // Value/Gauge Static Tooltip logic only
         mainWrapper.addEventListener('mousemove', (e) => {
-            const rect = mainWrapper.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            if (selection.graphType !== 'gauge') return;
 
-            // Handle Value/Gauge Custom Tooltips
-            if (selection.graphType === 'value' || selection.graphType === 'gauge') {
-                if (latestData && latestData.data && latestData.data[0]) {
-                    const row = latestData.data[0];
-                    const metrics = latestData.labels.slice(1).map((lbl, i) => {
-                        const name = lbl.split('.').pop().replace(/_/g, ' ');
-                        const val = typeof row[i + 1] === 'number' ? row[i + 1].toFixed(1) : (row[i + 1] || '0');
-                        return `<div class="chart-value-item">${name}: ${val}</div>`;
-                    }).join('');
+            if (latestData && latestData.data && latestData.data[0]) {
+                const row = latestData.data[0];
+                const metrics = latestData.labels.slice(1).map((lbl, i) => {
+                    const name = lbl.split('.').pop().replace(/_/g, ' ');
+                    const val = typeof row[i + 1] === 'number' ? row[i + 1].toFixed(1) : (row[i + 1] || '0');
+                    return `<div class="chart-value-item">${name}: ${val}</div>`;
+                }).join('');
 
-                    legendEl.innerHTML = `
-                        <div style="color: #f97316; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 2px;">${selection.name}</div>
-                        ${metrics}
-                    `;
-                }
-            }
+                legendEl.innerHTML = `
+                    <div style="color: #f97316; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 2px;">${selection.name}</div>
+                    ${metrics}
+                `;
+                legendEl.style.display = 'flex';
 
-            // Update Crosshairs (Only for charts)
-            if (selection.graphType !== 'value' && selection.graphType !== 'gauge' &&
-                x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-                vLine.style.left = (rect.left + x) + 'px';
-                hLine.style.top = (rect.top + y) + 'px';
-                vLine.style.display = 'block';
-                hLine.style.display = 'block';
-            } else {
-                vLine.style.display = 'none';
-                hLine.style.display = 'none';
-            }
-
-            if (legendEl.style.display !== 'none' || selection.graphType === 'value' || selection.graphType === 'gauge') {
                 const padding = 15;
                 let lx = e.clientX + padding;
                 let ly = e.clientY + padding;
 
-                // Collision detection (Viewport bounds)
                 const box = legendEl.getBoundingClientRect();
                 if (box.width > 0) {
                     const winW = window.innerWidth;
@@ -1245,10 +1325,8 @@
         });
 
         mainWrapper.addEventListener('mouseleave', () => {
-            vLine.style.display = 'none';
-            hLine.style.display = 'none';
-            if (selection.graphType === 'value' || selection.graphType === 'gauge') {
-                legendEl.innerHTML = '';
+            if (selection.graphType === 'gauge') {
+                legendEl.style.display = 'none';
             }
         });
 

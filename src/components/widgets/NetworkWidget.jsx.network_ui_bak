@@ -1,0 +1,482 @@
+import React, { useState, useEffect } from 'react';
+import { Router, Edit2, Check, X, ShieldAlert, ShieldCheck, Download, Upload, Siren, Search, RefreshCw, Terminal, Maximize } from 'lucide-react';
+
+const NetworkWidget = ({ widget, isEditMode }) => {
+    const [devices, setDevices] = useState([]);
+    const [knownDevices, setKnownDevices] = useState(() => {
+        try {
+            return JSON.parse(localStorage.getItem('zulu7-network-scanner-known')) || {};
+        } catch (e) {
+            return {};
+        }
+    }); // { "mac-address": { name: "My Phone" } }
+    
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const [editingId, setEditingId] = useState(null);
+    const [editName, setEditName] = useState('');
+    const [editCategory, setEditCategory] = useState('None');
+    const [filter, setFilter] = useState('unknown'); // 'all', 'known', 'unknown', 'cat_...'
+    const [lastScanTime, setLastScanTime] = useState(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showLogs, setShowLogs] = useState(false);
+    const [logs, setLogs] = useState([]);
+
+    const CATEGORIES = ['None', 'IoT', 'Mobile', 'Computer', 'Network', 'Entertainment', 'Guest'];
+
+    const segmentStr = widget.value || '192.168.1.0/24';
+    const parts = segmentStr.split('|');
+    const segment = widget.config?.api_params?.segment || parts[0] || '192.168.1.0/24';
+    const interval = widget.config?.api_params?.interval || parseInt(parts[1], 10) || 10;
+    const displayName = widget.config?.displayName || parts[2] || 'What is on my Network?';
+
+    // Save to local storage whenever knownDevices changes
+    useEffect(() => {
+        localStorage.setItem('zulu7-network-scanner-known', JSON.stringify(knownDevices));
+    }, [knownDevices]);
+
+    const fetchDevices = async (force = false) => {
+        try {
+            const endpoint = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+                ? `http://${window.location.hostname}:8080/api/network-scan` 
+                : '/api/network-scan';
+            
+            const res = await fetch(`${endpoint}?segment=${encodeURIComponent(segment)}&interval=${interval}${force ? '&force=true' : ''}`);
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
+            const data = await res.json();
+            
+            // The API now returns { devices: [], alertedIds: [] }
+            const devArray = Array.isArray(data) ? data : (data.devices || []);
+            setDevices(devArray);
+            setLastScanTime(Date.now());
+            setError('');
+        } catch (err) {
+            console.error(err);
+            setError('Failed to fetch network data.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchDevices();
+        const pollTimer = setInterval(() => fetchDevices(), 60000); // UI polls every 1 min
+        return () => clearInterval(pollTimer);
+    }, [segment, interval]);
+
+    const fetchLogs = async () => {
+        try {
+            const endpoint = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+                ? `http://${window.location.hostname}:8080/api/network-logs` 
+                : '/api/network-logs';
+            const res = await fetch(endpoint);
+            if (res.ok) {
+                const data = await res.json();
+                setLogs(data);
+            }
+        } catch (e) {
+            console.error("Failed to fetch logs:", e);
+        }
+    };
+
+    useEffect(() => {
+        let logTimer;
+        if (showLogs) {
+            fetchLogs();
+            logTimer = setInterval(fetchLogs, 2000); // Poll logs every 2 seconds when open
+        }
+        return () => clearInterval(logTimer);
+    }, [showLogs]);
+
+    // Merge backend data with local storage 'known' explicitly whenever either changes
+    const mergedDevices = devices.map(d => {
+        const knownMeta = knownDevices[d.id];
+        if (knownMeta) {
+            return { ...d, known: true, name: knownMeta.name, category: knownMeta.category };
+        }
+        const fallbackName = d.vendor && d.vendor !== 'Unknown Vendor' ? `${d.vendor} Device` : `Unknown Device (${d.ip})`;
+        return { ...d, known: false, name: fallbackName };
+    });
+
+    const handleRename = async (id) => {
+        try {
+            if (!editName.trim()) {
+                // If the user clears the name, "un-identify" the device
+                setKnownDevices(prev => {
+                    const next = { ...prev };
+                    delete next[id];
+                    return next;
+                });
+            } else {
+                // Update local storage state with new name
+                setKnownDevices(prev => ({
+                    ...prev,
+                    [id]: { 
+                        name: editName.trim(), 
+                        category: editCategory !== 'None' ? editCategory : undefined 
+                    }
+                }));
+            }
+        } catch (e) {
+            console.error("Rename failed:", e);
+        } finally {
+            setEditingId(null);
+        }
+    };
+
+    const startEdit = (device) => {
+        setEditingId(device.id);
+        setEditName(device.name);
+        setEditCategory(device.category || 'None');
+    };
+
+    const formatLastSeen = (ts) => {
+        const diff = Date.now() - ts;
+        if (diff < 60000) return 'Just now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        return `${Math.floor(diff / 3600000)}h ago`;
+    };
+
+    const ipToNum = (ip) => {
+        if (!ip) return 0;
+        return ip.split('.').reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0);
+    };
+
+    const handleExport = () => {
+        const dataStr = JSON.stringify(knownDevices, null, 2);
+        const blob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `network_devices_${Date.now()}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
+    const handleImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const importedData = JSON.parse(event.target.result);
+                // Basic validation
+                if (typeof importedData === 'object' && importedData !== null) {
+                    // Merge or replace? We'll merge with existing to be safe
+                    setKnownDevices(prev => ({
+                        ...prev,
+                        ...importedData
+                    }));
+                } else {
+                    alert("Invalid file format");
+                }
+            } catch (err) {
+                console.error("Failed to parse import file", err);
+                alert("Failed to parse imported JSON file");
+            }
+        };
+        reader.readAsText(file);
+        
+        // Reset the input so the same file can be selected again
+        e.target.value = null;
+    };
+
+    const sortedDevices = [...mergedDevices].sort((a, b) => {
+        // Unknown devices (d.known = false) should come before Known devices (d.known = true)
+        if (a.known !== b.known) {
+            return a.known ? 1 : -1;
+        }
+        // If they have the same known status, sort numerically by IP address
+        return ipToNum(a.ip) - ipToNum(b.ip);
+    });
+    const knownCount = sortedDevices.filter(d => d.known).length;
+    const unknownCount = sortedDevices.length - knownCount;
+
+    const displayedDevices = sortedDevices.filter(d => {
+        if (filter !== 'all') {
+            if (filter === 'known' && !d.known) return false;
+            if (filter === 'unknown' && d.known) return false;
+            if (filter.startsWith('cat_')) {
+                const targetCat = filter.replace('cat_', '');
+                if (d.category !== targetCat) return false;
+            }
+        }
+        
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const nameMatch = d.name?.toLowerCase().includes(query);
+            const ipMatch = d.ip?.toLowerCase().includes(query);
+            if (!nameMatch && !ipMatch) return false;
+        }
+        
+        return true;
+    });
+
+    return (
+        <div className={`widget-container h-full p-4 flex flex-col relative overflow-hidden transition-colors duration-500
+            ${unknownCount > 0 ? 'bg-rose-950/40 ring-1 ring-red-500/50' : (widget.config?.color || 'bg-slate-800')}
+        `}>
+            {/* Background Siren Glow */}
+            {unknownCount > 0 ? (
+                <div className="absolute top-0 left-0 w-64 h-64 blur-[60px] rounded-full animate-siren-intense pointer-events-none z-0 -translate-x-1/2 -translate-y-1/2 opacity-40" />
+            ) : null}
+
+            <div className="mb-3 shrink-0 relative z-10">
+                <h3 className="widget-title flex items-center justify-between">
+                    <span className={`flex items-center gap-2 ${unknownCount > 0 ? 'text-orange-500' : 'text-orange-500/90'}`}>
+                        <Router size={18} />
+                        {displayName} {devices.length > 0 ? ` - ${devices.length} Active IPs Detected` : ''}
+                    </span>
+                </h3>
+                <div className="flex gap-2 text-sm mt-3 flex-wrap items-center">
+                    <button 
+                        onClick={() => { setFilter('all'); setShowLogs(false); }}
+                        className={`px-3 py-1.5 rounded border font-bold tracking-wider transition-colors cursor-pointer ${filter === 'all' && !showLogs ? 'bg-blue-500/20 text-blue-400 border-blue-500/50' : 'bg-slate-800/50 text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                    >
+                        {mergedDevices.length} ALL
+                    </button>
+                    <button 
+                        onClick={() => { setFilter('unknown'); setShowLogs(false); }}
+                        className={`px-3 py-1.5 rounded border font-bold tracking-wider transition-colors cursor-pointer ${filter === 'unknown' && !showLogs ? 'bg-red-500/20 text-red-400 border-red-500/50' : 'bg-slate-800/50 text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                    >
+                        {unknownCount} UNKNOWN
+                    </button>
+                    <button 
+                        onClick={() => { setFilter('known'); setShowLogs(false); }}
+                        className={`px-3 py-1.5 rounded border font-bold tracking-wider transition-colors cursor-pointer ${filter === 'known' && !showLogs ? 'bg-green-500/20 text-green-400 border-green-500/50' : 'bg-slate-800/50 text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                    >
+                        {knownCount} KNOWN
+                    </button>
+                    {[...new Set(mergedDevices.filter(d => d.category).map(d => d.category))].map(cat => (
+                        <button 
+                            key={cat}
+                            onClick={() => { setFilter(`cat_${cat}`); setShowLogs(false); }}
+                            className={`px-3 py-1.5 rounded border font-bold tracking-wider transition-colors cursor-pointer ${filter === `cat_${cat}` && !showLogs ? 'bg-purple-500/20 text-purple-400 border-purple-500/50' : 'bg-slate-800/50 text-slate-500 border-slate-700 hover:text-slate-300'}`}
+                        >
+                            {cat.toUpperCase()}
+                        </button>
+                    ))}
+                    <button 
+                        onClick={() => setShowLogs(true)}
+                        className={`font-mono px-2.5 py-1.5 rounded border transition-colors flex items-center gap-1.5 ml-1 ${showLogs ? 'bg-black text-white border-slate-600' : 'bg-black/40 text-slate-300 border-white/5 hover:bg-black/60 hover:text-white'}`}
+                        title="View Scanner Logs"
+                    >
+                        {segment}
+                    </button>
+                    
+                    {/* Search Bar */}
+                    <div className="relative ml-2 flex items-center">
+                        <Search className="absolute left-2 text-slate-500" size={14} />
+                        <input 
+                            type="text"
+                            placeholder="Find by name or IP..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="bg-black/30 border border-slate-700/50 rounded pl-7 pr-3 py-1.5 text-xs text-slate-300 placeholder-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all w-40 focus:w-56"
+                        />
+                    </div>
+
+                    {lastScanTime && (
+                        <span className="flex items-center text-slate-500 ml-auto mr-2">
+                            Last scan: {new Date(lastScanTime).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                    )}
+
+                    <div className="flex items-center gap-1">
+                        <button 
+                            onClick={() => {
+                                setIsLoading(true);
+                                fetchDevices(true);
+                            }}
+                            disabled={isLoading}
+                            className="p-1.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Force Refresh Scan"
+                        >
+                            <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
+                        </button>
+                        <label className="cursor-pointer p-1.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors" title="Import Devices">
+                            <Upload size={14} />
+                            <input 
+                                type="file" 
+                                accept=".json" 
+                                className="hidden" 
+                                onChange={handleImport}
+                            />
+                        </label>
+                        <button 
+                            onClick={handleExport}
+                            className="p-1.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                            title="Export Devices"
+                        >
+                            <Download size={14} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {error && <div className="text-red-400 text-sm mb-2 shrink-0 relative z-10">{error}</div>}
+            {isLoading && <div className="text-slate-400 text-sm animate-pulse shrink-0 relative z-10">Scanning network...</div>}
+
+            {!showLogs ? (
+                <div className="flex-1 overflow-y-auto pr-2 space-y-2 custom-scrollbar min-h-0 relative z-10">
+                {displayedDevices.map(device => {
+                    const isUnknown = !device.known;
+                    return (
+                        <div 
+                            key={device.id} 
+                            className={`flex items-center justify-between p-3 rounded-lg border transition-all ${
+                                isUnknown 
+                                ? 'bg-red-950/40 border-red-500/50 hover:bg-red-900/40' 
+                                : 'bg-slate-900/40 border-green-500/30 hover:bg-slate-800/60'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3 overflow-hidden">
+                                {isUnknown ? (
+                                    <div className="relative flex h-3 w-3">
+                                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                      <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                                    </div>
+                                ) : (
+                                    <ShieldCheck size={16} className="text-green-500 shrink-0" />
+                                )}
+                                
+                                <div className="flex flex-col overflow-hidden">
+                                    {editingId === device.id && !isEditMode ? (
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex items-center gap-2">
+                                                <input 
+                                                    autoFocus
+                                                    type="text" 
+                                                    value={editName}
+                                                    onChange={e => setEditName(e.target.value)}
+                                                    onKeyDown={e => e.key === 'Enter' && handleRename(device.id)}
+                                                    className="bg-black/50 text-white text-sm rounded px-2 py-1 border border-slate-600 focus:border-blue-500 focus:outline-none w-full"
+                                                    placeholder="Device name..."
+                                                />
+                                                <button onClick={() => handleRename(device.id)} className="text-green-400 hover:text-green-300">
+                                                    <Check size={16} />
+                                                </button>
+                                                <button onClick={() => setEditingId(null)} className="text-red-400 hover:text-red-300">
+                                                    <X size={16} />
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <select 
+                                                    value={editCategory} 
+                                                    onChange={e => setEditCategory(e.target.value)}
+                                                    className="bg-black/50 text-slate-300 text-xs rounded px-2 py-1.5 border border-slate-600 focus:border-blue-500 focus:outline-none w-full"
+                                                >
+                                                    {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <span className={`font-semibold truncate ${isUnknown ? 'text-red-400' : 'text-slate-200'}`}>
+                                                {device.name}
+                                            </span>
+                                            {device.category && (
+                                                <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/30 ml-2">
+                                                    {device.category}
+                                                </span>
+                                            )}
+                                            {!isEditMode && (
+                                                <button 
+                                                    onClick={() => startEdit(device)} 
+                                                    className="text-slate-500 hover:text-white transition-colors"
+                                                    title="Rename Device"
+                                                >
+                                                    <Edit2 size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5">
+                                        <span>{device.ip}</span>
+                                        <span className="text-slate-600 text-[10px]">•</span>
+                                        <span className="truncate">{device.mac}</span>
+                                        {device.vendor && device.vendor !== 'Unknown Vendor' && (
+                                            <>
+                                                <span className="text-slate-600 text-[10px]">•</span>
+                                                <span className="truncate text-slate-300 px-1.5 py-0.5 rounded bg-black/30 border border-white/5">{device.vendor}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                    {isUnknown && device.openPorts && device.openPorts.length > 0 && (
+                                        <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                                            <span className="text-[10px] text-red-400 font-semibold mr-1">OPEN PORTS:</span>
+                                            {device.openPorts.map(p => (
+                                                <span key={p} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/20">
+                                                    {p}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                </div>
+                            </div>
+
+                            <div className="text-right flex flex-col items-end">
+                                <span className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded ${isUnknown ? 'bg-red-500/20 text-red-400' : 'text-slate-500'}`}>
+                                    {isUnknown ? 'NEW' : 'KNOWN'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 mt-1 whitespace-nowrap">
+                                    {formatLastSeen(device.lastSeen)}
+                                </span>
+                                {device.history && Array.isArray(device.history) && (
+                                    <div className="flex items-end gap-[1px] h-3 mt-1.5 opacity-60 hover:opacity-100 transition-opacity" title="Connection History (Last 20 Scans)">
+                                        {device.history.map((status, i) => (
+                                            <div 
+                                                key={i} 
+                                                className={`w-1 rounded-t-sm ${status ? 'h-full bg-green-500' : 'h-1/3 bg-red-500'}`}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+                {displayedDevices.length === 0 && !isLoading && !error && (
+                    <div className="text-slate-500 text-sm italic text-center py-4 relative z-10">
+                        No {filter !== 'all' ? filter : ''} devices found
+                    </div>
+                )}
+                </div>
+            ) : (
+                <div className="flex-1 flex flex-col bg-slate-900/80 rounded border border-slate-700/50 relative z-10 min-h-0 overflow-hidden mt-1">
+                    <div className="flex-1 overflow-y-auto p-3 custom-scrollbar font-mono text-[10px] sm:text-xs">
+                        {logs.length === 0 ? (
+                            <div className="text-slate-500 italic">No logs available.</div>
+                        ) : (
+                            <div className="flex flex-col gap-1">
+                                {logs.map((log, i) => (
+                                    <div key={i} className={`py-0.5 border-b border-white/5 ${log.toLowerCase().includes('error') || log.toLowerCase().includes('fail') ? 'text-red-400' : 'text-slate-300'}`}>
+                                        {log}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+
+            
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @keyframes siren-intense {
+                    0%, 25% { background-color: rgba(239, 68, 68, 0.8); filter: blur(60px); transform: translate(-50%, -50%) scale(1); }
+                    30%, 75% { background-color: rgba(0, 71, 255, 0.8); filter: blur(80px); transform: translate(-45%, -45%) scale(1.4); }
+                    80%, 100% { background-color: rgba(239, 68, 68, 0.8); filter: blur(60px); transform: translate(-50%, -50%) scale(1); }
+                }
+                .animate-siren-intense { animation: siren-intense 0.8s steps(10) infinite; }
+            `}} />
+        </div>
+    );
+};
+
+export default NetworkWidget;

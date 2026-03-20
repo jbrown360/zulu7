@@ -14,13 +14,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install production dependencies
+# Install production dependencies and network tools
+RUN apk add --no-cache nmap
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Copy built assets and server
 COPY --from=build /app/dist ./dist
 COPY server.js ./
+COPY integrations ./integrations
 
 # Create directory for published configs validation
 RUN mkdir -p published_configs

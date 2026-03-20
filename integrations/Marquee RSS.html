@@ -215,21 +215,18 @@
         }
 
         function animate() {
-            // EXTREME HIBERNATION: 
-            // 1. Check IntersectionObserver (isVisible)
-            // 2. Check document visibilityState (tab focus)
-            // 3. Check for hover pause
             if (!isHovered && isVisible && document.visibilityState === 'visible' && contentWidth > 0) {
                 // Row 1
                 scrollPos1 += speed1;
-                if (scrollPos1 >= contentWidth) scrollPos1 = 0;
+                if (scrollPos1 >= contentWidth) scrollPos1 -= contentWidth;
 
                 // Row 2
                 scrollPos2 += speed2;
-                if (scrollPos2 >= contentWidth) scrollPos2 = 0;
+                if (scrollPos2 >= contentWidth) scrollPos2 -= contentWidth;
 
-                marquee1.style.transform = `translateX(${-scrollPos1}px)`;
-                marquee2.style.transform = `translateX(${-scrollPos2}px)`;
+                // translate3d forces GPU compositor layer
+                marquee1.style.transform = `translate3d(${-scrollPos1}px, 0, 0)`;
+                marquee2.style.transform = `translate3d(${-scrollPos2}px, 0, 0)`;
             }
 
             requestAnimationFrame(animate);

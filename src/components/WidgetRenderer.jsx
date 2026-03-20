@@ -8,6 +8,8 @@ import MediaWidget from './widgets/MediaWidget';
 import ServiceWidget from './widgets/ServiceWidget';
 import MoviePosterWidget from './widgets/MoviePosterWidget';
 import HDHomeRunWidget from './widgets/HDHomeRunWidget';
+import NetworkWidget from './widgets/NetworkWidget';
+import ClipboardWidget from './widgets/ClipboardWidget';
 
 const WidgetRenderer = ({ widget, isLocked, finnhubKey, tmdbKey }) => {
     // Use reloadVersion as part of the key to force re-mounting when reloaded
@@ -45,6 +47,10 @@ const WidgetRenderer = ({ widget, isLocked, finnhubKey, tmdbKey }) => {
             );
         case 'hdhomerun':
             return <HDHomeRunWidget data={widget} isLocked={isLocked} />;
+        case 'network-scanner':
+            return <NetworkWidget widget={widget} isEditMode={!isLocked} />;
+        case 'clipboard':
+            return <ClipboardWidget widget={widget} isLocked={isLocked} />;
         default:
             return <div>Unknown</div>;
     }

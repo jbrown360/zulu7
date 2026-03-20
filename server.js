@@ -12,7 +12,35 @@ import { exec } from 'node:child_process';
 import net from 'node:net';
 import os from 'node:os';
 import snmp from 'net-snmp';
+import arp from 'node-arp';
+import multer from 'multer';
 
+// --- Clipboard Storage configuration ---
+const CLIPBOARD_DIR = path.resolve('data', 'clipboards');
+if (!existsSync(path.resolve('data'))) mkdirSync(path.resolve('data'));
+if (!existsSync(CLIPBOARD_DIR)) mkdirSync(CLIPBOARD_DIR);
+
+// Multer config for Clipboard uploads
+const clipboardStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const key = req.params.key;
+        if (!key || !/^[a-zA-Z0-9_-]+$/.test(key)) {
+            return cb(new Error("Invalid clipboard key"));
+        }
+        const dir = path.join(CLIPBOARD_DIR, key);
+        if (!existsSync(dir)) {
+            mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => {
+        // Sanitize filename to prevent path traversal or weird characters
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9_.-]/g, '_');
+        cb(null, safeName);
+    }
+});
+const uploadLocal = multer({ storage: clipboardStorage, limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB limit
+const uploadDemo = multer({ storage: clipboardStorage, limits: { fileSize: 10 * 1024 * 1024 } }); // 10MB limit
 // --- SNMP Persistence Manager ---
 const SNMP_HISTORY_DIR = path.resolve('snmp_history');
 if (!existsSync(SNMP_HISTORY_DIR)) mkdirSync(SNMP_HISTORY_DIR);
@@ -353,12 +381,13 @@ class SpeedtestManager {
     async measureDownload() {
         try {
             const startTime = Date.now();
-            // Using a 10MB test file from Cloudflare
-            const res = await fetch('https://speed.cloudflare.com/__down?bytes=10485760');
+            // Using a 25MB test file from Cloudflare
+            const res = await fetch('https://speed.cloudflare.com/__down?bytes=26214400');
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             await res.arrayBuffer();
             const durationSec = (Date.now() - startTime) / 1000;
-            const mbps = (10 * 8) / durationSec;
+            // bits = bytes * 8 (25MB = 25 * 8 = 200 Megabits)
+            const mbps = (25 * 8) / durationSec;
             return parseFloat(mbps.toFixed(2));
         } catch (e) {
             console.error("[Speedtest] Dn Error:", e);
@@ -368,7 +397,7 @@ class SpeedtestManager {
 
     async measureUpload() {
         try {
-            const data = crypto.randomBytes(1048576); // 1MB
+            const data = crypto.randomBytes(5242880); // 5MB
             const startTime = Date.now();
             const res = await fetch('https://speed.cloudflare.com/__up', {
                 method: 'POST',
@@ -376,7 +405,8 @@ class SpeedtestManager {
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const durationSec = (Date.now() - startTime) / 1000;
-            const mbps = (1 * 8) / durationSec;
+            // 5MB = 40 Megabits
+            const mbps = (5 * 8) / durationSec;
             return parseFloat(mbps.toFixed(2));
         } catch (e) {
             console.error("[Speedtest] Up Error:", e);
@@ -410,9 +440,415 @@ class SpeedtestManager {
     }
 }
 
+// --- MAC OUI Vendor Lookup System ---
+const MAC_VENDORS_OFFLINE_FILE = path.resolve('mac_vendors.json');
+const MAC_VENDORS_CACHE_FILE = path.resolve('mac_api_cache.json');
+
+class MacVendorLookup {
+    constructor() {
+        this.cache = {}; // Persistent API cache
+        this.offlineDb = {}; // Massive IEEE index
+        this.pendingRequests = new Map();
+        
+        // 1. Load the massive 4MB IEEE dictionary we downloaded
+        try {
+            if (existsSync(MAC_VENDORS_OFFLINE_FILE)) {
+                this.offlineDb = JSON.parse(readFileSync(MAC_VENDORS_OFFLINE_FILE, 'utf-8'));
+                console.log(`[MacVendorLookup] Loaded ${Object.keys(this.offlineDb).length} MAC vendors from offline database.`);
+            }
+        } catch (e) {
+            console.warn(`[MacVendorLookup] Could not parse offline database:`, e.message);
+        }
+
+        // 2. Load the dynamic API cache for anything not in the IEEE db (e.g., dynamic lookups)
+        try {
+            if (existsSync(MAC_VENDORS_CACHE_FILE)) {
+                this.cache = JSON.parse(readFileSync(MAC_VENDORS_CACHE_FILE, 'utf-8'));
+                console.log(`[MacVendorLookup] Loaded ${Object.keys(this.cache).length} cached API MAC vendors.`);
+            }
+        } catch (e) {
+            console.error("[MacVendorLookup] Error loading cache:", e);
+        }
+    }
+
+    saveCache() {
+        try {
+            writeFileSync(MAC_VENDORS_CACHE_FILE, JSON.stringify(this.cache));
+        } catch (e) {
+            console.error("[MacVendorLookup] Error saving cache:", e);
+        }
+    }
+
+    async getVendor(mac) {
+        if (!mac) return 'Unknown Vendor';
+        
+        const oui = mac.substring(0, 8).toLowerCase();
+        
+        // 1. Check offline massive IEEE database first
+        if (this.offlineDb[oui]) {
+            return this.offlineDb[oui];
+        }
+
+        // 2. Check dynamic API cache next
+        if (this.cache[oui] !== undefined) {
+            return this.cache[oui];
+        }
+
+        // If a request for this OUI is already in flight, wait for it
+        if (this.pendingRequests.has(oui)) {
+            return this.pendingRequests.get(oui);
+        }
+
+        const fetchPromise = new Promise(async (resolve) => {
+            try {
+                // Throttle requests slightly if making multiple at startup
+                const res = await fetch(`https://api.macvendors.com/${encodeURIComponent(oui)}`, {
+                    headers: {
+                        'User-Agent': 'Zulu7 Network Scanner / 1.0; (Node.js)'
+                    }
+                });
+                
+                if (res.status === 200) {
+                    const vendor = await res.text();
+                    this.cache[oui] = vendor.trim();
+                    this.saveCache();
+                    resolve(this.cache[oui]);
+                } else if (res.status === 404) {
+                    this.cache[oui] = 'Unknown Vendor'; // Cache the miss so we don't spam the API
+                    this.saveCache();
+                    resolve(this.cache[oui]);
+                } else {
+                    console.log(`[MacVendorLookup] API returned status ${res.status} for ${oui}`);
+                    resolve('Unknown Vendor'); // Don't cache transient errors like rate limits
+                }
+            } catch (err) {
+                console.error(`[MacVendorLookup] API request failed for ${oui}:`, err.message);
+                resolve('Unknown Vendor');
+            } finally {
+                this.pendingRequests.delete(oui); // Clean up
+                // Wait 1s between requests to respect rate limits if we hit this sequentially
+                await new Promise(r => setTimeout(r, 1000));
+            }
+        });
+
+        this.pendingRequests.set(oui, fetchPromise);
+        return fetchPromise;
+    }
+}
+
+const macVendorLookup = new MacVendorLookup();
+
+// --- Network Scanner Manager ---
+
+
+
+class NetworkScannerManager {
+    constructor() {
+        this.cache = new Map(); // ip/mac -> { ip, mac, firstSeen, lastSeen }
+        this.pollTimers = new Map(); // segment -> timerId
+        this.alertedIds = new Set(); // Globally track devices we've already alerted about
+        this.cacheFile = path.resolve('data', 'network_scan_cache.json');
+        this.logs = []; // Rolling log buffer
+        this.maxLogs = 200; // Keep last 200 logs
+        this.loadCache();
+    }
+
+    loadCache() {
+        try {
+            if (existsSync(this.cacheFile)) {
+                const data = JSON.parse(readFileSync(this.cacheFile, 'utf-8'));
+                // data might be array of [id, devObject] or just objects
+                if (Array.isArray(data)) {
+                    data.forEach(entry => {
+                        // Support both map-like serialization and array of objects
+                        if (Array.isArray(entry) && entry.length === 2 && entry[1].mac) {
+                            this.cache.set(entry[0], entry[1]);
+                        } else if (entry.mac) {
+                            this.cache.set(entry.mac, entry);
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("[NetworkManager] Failed to load cache:", e.message);
+        }
+    }
+
+    saveCache() {
+        try {
+            writeFileSync(this.cacheFile, JSON.stringify(Array.from(this.cache.entries()), null, 2));
+        } catch (e) {
+            console.error("[NetworkManager] Failed to save cache:", e.message);
+        }
+    }
+
+    addLog(msg) {
+        const timestamp = new Date().toISOString();
+        const logEntry = `[${timestamp}] ${msg}`;
+        console.log(`[NetworkManager] ${msg}`);
+        this.logs.push(logEntry);
+        if (this.logs.length > this.maxLogs) {
+            this.logs.shift();
+        }
+    }
+
+    async scanPorts(ip) {
+        const commonPorts = [21, 22, 23, 53, 80, 139, 443, 445, 3389, 5000, 8080, 8443];
+        const openPorts = [];
+        const promises = commonPorts.map(port => {
+            return new Promise(resolve => {
+                const socket = new net.Socket();
+                socket.setTimeout(2000);
+                
+                socket.on('connect', () => {
+                    openPorts.push(port);
+                    socket.destroy();
+                    resolve();
+                });
+                
+                socket.on('timeout', () => {
+                    socket.destroy();
+                    resolve();
+                });
+                
+                socket.on('error', () => {
+                    resolve();
+                });
+                
+                socket.connect(port, ip);
+            });
+        });
+        
+        await Promise.allSettled(promises);
+        return openPorts.sort((a,b) => a - b);
+    }
+
+    startScanning(segment, intervalMs = 600000) {
+        if (!this.pollTimers.has(segment)) {
+            this.addLog(`Starting scan for segment ${segment} every ${intervalMs}ms`);
+            
+            // Initial scan immediately
+            this.scanSegment(segment);
+            
+            const timer = setInterval(() => this.scanSegment(segment), intervalMs);
+            this.pollTimers.set(segment, timer);
+        }
+        return this.getDevices();
+    }
+
+    scanSegment(segment, forceClear = false) {
+        return new Promise(async (resolve) => {
+            if (!segment) return resolve();
+
+            const now = Date.now();
+            let discoveredDevices = [];
+            let nmapFailed = false;
+
+            // Attempt Nmap Primary Method
+            try {
+                const nmapOutput = await new Promise((res, rej) => {
+                    // -sn: Ping Scan (disable port scan)
+                    // -oG -: Output in greppable format to stdout
+                    // Require sudo? No, -sn works without root for basic ping, but MAC might be missing if not root.
+                    // We run basic nmap and parse the human-readable output, which includes MAC if on local subnet.
+                    // Optimizations: -n (disable DNS resolution), -T4 (aggressive timing for faster local sweeps).
+                    exec(`nmap -sn -n -T4 ${segment}`, { timeout: 60000 }, (error, stdout, stderr) => {
+                        if (error) {
+                            if (error.code === 127 || stderr.includes('not found')) {
+                                rej(new Error('nmap not installed'));
+                            } else {
+                                // Some hosts down might return exit code 1 or similar in nmap? Usually 0 if successful run.
+                                res(stdout);
+                            }
+                        } else {
+                            res(stdout);
+                        }
+                    });
+                });
+
+                // Parse nmap output
+                // Example lines:
+                // Nmap scan report for 192.168.1.100
+                // Host is up (0.0012s latency).
+                // MAC Address: 00:1A:2B:3C:4D:5E (Vendor Name Inc)
+
+                const lines = nmapOutput.split('\n');
+                let currentIP = null;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+
+                    const ipMatch = line.match(/Nmap scan report for (.+)/);
+                    if (ipMatch) {
+                        currentIP = ipMatch[1].trim();
+                        // Nmap sometimes puts DNS name along with IP: "router.lan (192.168.1.1)"
+                        const parenthesizedIP = currentIP.match(/\(([^)]+)\)/);
+                        if (parenthesizedIP) {
+                            currentIP = parenthesizedIP[1];
+                        }
+                    }
+
+                    const macMatch = line.match(/MAC Address: ([0-9A-Fa-f:]+) \((.*)\)/) || line.match(/MAC Address: ([0-9A-Fa-f:]+)/);
+                    if (macMatch && currentIP) {
+                        const mac = macMatch[1].toLowerCase();
+                        discoveredDevices.push({ ip: currentIP, mac });
+                        currentIP = null; // reset for next block
+                    }
+                }
+
+                if (discoveredDevices.length > 0) {
+                    this.addLog(`Nmap discovery successful. Found ${discoveredDevices.length} hosts.`);
+                } else {
+                    // Maybe nmap ran but didn't output MAC addresses (e.g. not run as root, or not local subnet)
+                    // Fall back to ARP cache check just in case nmap populated it implicitly
+                    this.addLog("Nmap didn't return MACs, falling back to ARP cache read.");
+                    nmapFailed = true; 
+                }
+
+            } catch (err) {
+                this.addLog(`Nmap failed or unavailable, falling back to ping sweep... ${err.message}`);
+                nmapFailed = true;
+            }
+
+            // Fallback: Concurrent Ping Sweep
+            if (nmapFailed) {
+                if (segment.includes('/24')) {
+                    const parts = segment.split('/')[0].split('.');
+                    if (parts.length === 4) {
+                        const baseIP = `${parts[0]}.${parts[1]}.${parts[2]}.`;
+                        const promises = [];
+                        // Ping all 254 possible hosts with a 1-second timeout
+                        for (let i = 1; i <= 254; i++) {
+                            promises.push(new Promise(res => {
+                                exec(`ping -c 1 -W 1 ${baseIP}${i}`, () => res());
+                            }));
+                        }
+                        await Promise.allSettled(promises);
+                    }
+                }
+            }
+
+            // Read populated ARP cache (used unconditionally since Nmap updates it too, 
+            // and Nmap might not provide MACs if not run as root)
+            exec(`ip neigh show`, (err, stdout) => {
+                if (err) {
+                    this.addLog(`Failed to read ARP cache: ${err.message}`);
+                    return resolve();
+                }
+
+                const lines = stdout.split('\n');
+
+                for (const line of lines) {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length >= 5 && parts[1] === 'dev' && parts[3] === 'lladdr' && /^[0-9a-fA-F:]+$/.test(parts[4])) {
+                        const ip = parts[0];
+                        const mac = parts[4].toLowerCase();
+                        const state = parts[parts.length - 1];
+
+                        // Strict kernel state dropping - eliminate STALE ghost devices
+                        const activeStates = ['REACHABLE', 'DELAY', 'PROBE'];
+                        if (!activeStates.includes(state)) continue;
+
+                        // Ensure this segment matches? (We trust the ARP cache generally)
+                        discoveredDevices.push({ ip, mac });
+                    }
+                }
+
+                // Update cache and history tracking
+                const discoveredIds = new Set(discoveredDevices.map(d => d.mac));
+                
+                // 1. Update existing and track misses
+                for (const [id, existing] of this.cache.entries()) {
+                    existing.history = existing.history || Array(10).fill({ s: 1, t: now - 60000 }); // pre-populate with 1s to not unfairly penalize
+                    const wasSeen = discoveredIds.has(id);
+                    existing.history.push({ s: wasSeen ? 1 : 0, t: now });
+                    if (existing.history.length > 60) existing.history.shift();
+                    
+                    if (wasSeen) {
+                        const dev = discoveredDevices.find(d => d.mac === id);
+                        existing.lastSeen = now;
+                        existing.ip = dev.ip;
+                    } else if (forceClear) {
+                        this.cache.delete(id);
+                        this.alertedIds.delete(id);
+                    }
+                }
+                
+                // 2. Add new devices
+                for (const dev of discoveredDevices) {
+                    const id = dev.mac;
+                    if (!this.cache.has(id)) {
+                        this.cache.set(id, {
+                            id: id,
+                            mac: dev.mac,
+                            ip: dev.ip,
+                            vendor: 'Resolving...',
+                            firstSeen: now,
+                            lastSeen: now,
+                            openPorts: [],
+                            history: [{ s: 1, t: now }]
+                        });
+                        this.addLog(`Discovered new active device: ${dev.ip} (${dev.mac})`);
+                        
+                        // Fire off async vendor lookup
+                        macVendorLookup.getVendor(dev.mac).then(vendor => {
+                            const existing = this.cache.get(id);
+                            if (existing) {
+                                existing.vendor = vendor;
+                                this.cache.set(id, existing);
+                                this.addLog(`Vendor assigned to ${dev.ip}: ${vendor}`);
+                            }
+                        });
+
+                        // Fire off async port scan for new devices
+                        this.scanPorts(dev.ip).then(ports => {
+                            if (ports.length > 0) {
+                                const existing = this.cache.get(id);
+                                if (existing) {
+                                    existing.openPorts = ports;
+                                    this.cache.set(id, existing);
+                                    this.addLog(`Ports open on ${dev.ip}: ${ports.join(', ')}`);
+                                }
+                            }
+                        });
+                    }
+                }
+
+                this.saveCache();
+                resolve();
+            });
+        });
+    }
+    getDevices() {
+        // Trigger vendor lookups for any cached devices that still say Unknown Vendor, but limit retries
+        const now = Date.now();
+        for (const [id, dev] of this.cache.entries()) {
+            if (dev.vendor === 'Unknown Vendor' || dev.vendor === 'Resolving...') {
+                // Only retry if we haven't tried in the last hour, to prevent API spam for truly unknown MACs
+                if (!dev.lastLookupAttempt || (now - dev.lastLookupAttempt) > 3600000) {
+                    dev.lastLookupAttempt = now;
+                    this.cache.set(id, dev); // Save the attempt timestamp
+                    
+                    macVendorLookup.getVendor(dev.mac).then(vendor => {
+                        const existing = this.cache.get(id);
+                        if (existing && vendor !== 'Unknown Vendor') {
+                            existing.vendor = vendor;
+                            this.cache.set(id, existing);
+                        }
+                    }).catch(() => {
+                        // Ignore lookup errors, we'll try again in an hour
+                    });
+                }
+            }
+        }
+        return Array.from(this.cache.values()).sort((a,b) => b.lastSeen - a.lastSeen);
+    }
+}
+
 const snmpManager = new SnmpManager();
 const dockerManager = new DockerManager();
 const speedtestManager = new SpeedtestManager();
+const networkManager = new NetworkScannerManager();
 
 
 // Global HTTPS Agent for reuse
@@ -769,8 +1205,225 @@ app.get('/api/snmp', (req, res) => {
     });
 });
 
+// API: Clipboard
+app.get('/api/clipboard/:key', async (req, res) => {
+    const key = req.params.key;
+    if (!key || !/^[a-zA-Z0-9_-]+$/.test(key)) return res.status(400).json({ error: 'Invalid key format' });
+    
+    const dir = path.join(CLIPBOARD_DIR, key);
+    try {
+        if (!existsSync(dir)) {
+            return res.json({ files: [] }); // Clipboard is empty/new
+        }
+        
+        const files = await fs.readdir(dir);
+        const fileDetails = await Promise.all(files.map(async (file) => {
+            const filePath = path.join(dir, file);
+            const stats = await fs.stat(filePath);
+            
+            let content = null;
+            let isSnippet = false;
+            
+            // If it's a small text file, inline its contents
+            if (file.endsWith('.txt') && stats.size < 2048) { // Only read files under 2KB
+                try {
+                    content = await fs.readFile(filePath, 'utf-8');
+                    isSnippet = true;
+                } catch (e) {
+                    console.error("Failed to read snippet:", file);
+                }
+            }
+
+            return {
+                name: file,
+                size: stats.size,
+                created: stats.birthtimeMs,
+                modified: stats.mtimeMs,
+                content: content,
+                isSnippet: isSnippet
+            };
+        }));
+        
+        // Sort newest first
+        fileDetails.sort((a, b) => b.modified - a.modified);
+        res.json({ files: fileDetails });
+    } catch (e) {
+        console.error("Clipboard List Error:", e);
+        res.status(500).json({ error: 'Failed to list files' });
+    }
+});
+
+app.post('/api/clipboard/:key/upload', (req, res, next) => {
+    const host = req.hostname || req.headers.host || '';
+    const uploader = host.includes('zulu7.net') ? uploadDemo : uploadLocal;
+    
+    uploader.single('file')(req, res, (err) => {
+        if (err) {
+            return res.status(400).json({ error: err.message });
+        }
+        next();
+    });
+}, (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    res.json({ success: true, filename: req.file.filename, size: req.file.size });
+});
+
+app.get('/api/clipboard/:key/download/:filename', (req, res) => {
+    const { key, filename } = req.params;
+    if (!key || !/^[a-zA-Z0-9_-]+$/.test(key)) return res.status(400).send('Invalid key');
+    
+    // Basic path traversal prevention handled by Express and regex, but let's be safe
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(CLIPBOARD_DIR, key, safeFilename);
+    
+    if (!existsSync(filePath)) return res.status(404).send('File not found');
+    res.download(filePath);
+});
+
+app.delete('/api/clipboard/:key/:filename', async (req, res) => {
+    const { key, filename } = req.params;
+    if (!key || !/^[a-zA-Z0-9_-]+$/.test(key)) return res.status(400).json({ error: 'Invalid key' });
+    
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(CLIPBOARD_DIR, key, safeFilename);
+    
+    try {
+        if (!existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+        await fs.unlink(filePath);
+        res.json({ success: true, message: 'File deleted' });
+    } catch (e) {
+        console.error("Clipboard Delete Error:", e);
+        res.status(500).json({ error: 'Failed to delete file' });
+    }
+});
+
 app.get('/api/speedtest', (req, res) => {
     res.json(speedtestManager.getHistory());
+});
+
+// API: Network Scanner
+app.get('/api/network-logs', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json(networkManager.logs);
+});
+
+app.get('/api/network-scan', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const { segment, interval, force } = req.query;
+    const pollInterval = interval ? Math.max(10000, parseInt(interval) * 1000) : 30000; // default 30 secs
+    
+    // Ensure the background loop is running
+    networkManager.startScanning(segment || '192.168.1.0/24', pollInterval);
+    
+    // Explicitly wait for a scan to finish if requested, OR if the cache is currently totally empty (e.g. fresh boot)
+    if (force === 'true' || networkManager.cache.size === 0) {
+        await networkManager.scanSegment(segment || '192.168.1.0/24', force === 'true');
+    }
+    
+    res.json({
+        devices: networkManager.getDevices(),
+        alertedIds: Array.from(networkManager.alertedIds)
+    });
+});
+
+const networkKnownFile = path.resolve('data', 'network_known_devices.json');
+if (!existsSync(path.resolve('data'))) {
+    mkdirSync(path.resolve('data'));
+}
+
+app.get('/api/network-known', (req, res) => {
+    try {
+        if (existsSync(networkKnownFile)) {
+            const data = JSON.parse(readFileSync(networkKnownFile, 'utf-8'));
+            res.json(data);
+        } else {
+            res.json({});
+        }
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to read known devices.' });
+    }
+});
+
+app.post('/api/network-known', express.json(), (req, res) => {
+    try {
+        writeFileSync(networkKnownFile, JSON.stringify(req.body, null, 2));
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to save known devices.' });
+    }
+});
+
+app.post('/api/network-alert', express.json(), (req, res) => {
+    const { ids } = req.body;
+    if (Array.isArray(ids)) {
+        ids.forEach(id => networkManager.alertedIds.add(id));
+    }
+    res.json({ success: true });
+});
+
+// API: Verify and purge device if offline
+app.post('/api/network-verify-purge', express.json(), async (req, res) => {
+    const { ip, mac } = req.body;
+    if (!ip || !mac) return res.status(400).json({ error: 'Missing ip or mac' });
+
+    try {
+        // Ping the IP explicitly with 1 packet, small timeout
+        await new Promise((resolve) => {
+            exec(`ping -c 1 -W 1 ${ip}`, (error) => {
+                if (error) {
+                    // It's offline! Purge it completely from the backend cache!
+                    networkManager.cache.delete(mac);
+                    networkManager.alertedIds.delete(mac);
+                } else {
+                    // It's online! Update lastSeen so it's fresh.
+                    const existing = networkManager.cache.get(mac);
+                    if (existing) {
+                        existing.lastSeen = Date.now();
+                        if (Array.isArray(existing.history)) {
+                            existing.history.push(1);
+                        }
+                    }
+                    // Reset its alerted state so the global background scanner will trigger a brand-new UI alarm!
+                    networkManager.alertedIds.delete(mac);
+                }
+                resolve();
+            });
+        });
+
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// API: Ping a single device for real-time history monitoring
+app.get('/api/network-ping-device', async (req, res) => {
+    let { ip, mac } = req.query;
+    if (!ip || !mac) return res.status(400).json({ error: 'Missing ip or mac' });
+
+    try {
+        const { isOnline, latency } = await new Promise((resolve) => {
+            exec(`nmap -sn -n -T5 --max-retries 1 --host-timeout 2000ms ${ip}`, (error, stdout) => {
+                if (error || stdout.includes('0 hosts up')) {
+                    return resolve({ isOnline: false, latency: null });
+                }
+                const match = stdout.match(/Host is up \(([\d.]+)s latency\)/);
+                const lat = match ? parseFloat(match[1]) * 1000 : 1;
+                resolve({ isOnline: true, latency: lat });
+            });
+        });
+
+        // Track only lastSeen on backend, do NOT pollute the 60-minute background sweep array with 1-second macro payloads
+        const existing = networkManager.cache.get(mac);
+        if (existing && isOnline) {
+            existing.lastSeen = Date.now();
+        }
+        
+        // Return raw telemetry to the frontend for isolated UI real-time processing
+        res.json({ mac, s: isOnline ? 1 : 0, l: latency, t: Date.now() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // API: Universal Media Folder Scraper (Local, GDrive, HTTP)
@@ -1483,6 +2136,13 @@ app.use((req, res, next) => {
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
+});
+
+// Explicitly handle WebSocket Upgrades for go2rtc
+server.on('upgrade', (req, socket, head) => {
+    if (req.url.startsWith('/api/ws')) {
+        go2rtcProxy.upgrade(req, socket, head);
+    }
 });

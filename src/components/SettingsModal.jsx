@@ -14,6 +14,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
     const [finnhubKey, setFinnhubKey] = useState('');
     const [googleApiKey, setGoogleApiKey] = useState('');
     const [streamApiKey, setStreamApiKey] = useState('');
+    const [tmdbKey, setTmdbKey] = useState('');
 
     // activeTab state lifted to parent
 
@@ -68,6 +69,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
             if (initialSettings.finnhubKey) setFinnhubKey(initialSettings.finnhubKey);
             if (initialSettings.googleApiKey) setGoogleApiKey(initialSettings.googleApiKey);
             if (initialSettings.streamApiKey) setStreamApiKey(initialSettings.streamApiKey);
+            if (initialSettings.tmdbKey) setTmdbKey(initialSettings.tmdbKey);
 
             // Legacy settings load
             if (initialSettings.bgImages) setBgImages(initialSettings.bgImages.join('\n'));
@@ -146,6 +148,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
             finnhubKey !== (initialSettings.finnhubKey || '') ||
             googleApiKey !== (initialSettings.googleApiKey || '') ||
             streamApiKey !== (initialSettings.streamApiKey || '') ||
+            tmdbKey !== (initialSettings.tmdbKey || '') ||
             (streamerUrl || '') !== (initialSettings.streamerUrl || '') ||
             slideshowInterval != (initialSettings.slideshowInterval || 60) ||
             isSlideshowEnabled !== (initialSettings.isSlideshowEnabled || false) ||
@@ -157,7 +160,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
             isOrderDiff
         );
     }, [
-        initialSettings, labName, timeZone, finnhubKey, googleApiKey, streamApiKey, streamerUrl,
+        initialSettings, labName, timeZone, finnhubKey, googleApiKey, streamApiKey, tmdbKey, streamerUrl,
         slideshowInterval, isSlideshowEnabled, workspaceRotationInterval, isWorkspaceRotationEnabled,
         bgImages, dashboardRotationSelection, dashboardNames, dashboardOrder
     ]);
@@ -260,6 +263,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
             finnhubKey,
             googleApiKey,
             streamApiKey,
+            tmdbKey,
             bgImages: images,
             slideshowInterval: Math.max(10, parseInt(slideshowInterval || 60, 10)),
             isSlideshowEnabled,
@@ -376,7 +380,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
     };
 
 
-    const getDashboardConfig = useCallback((scopeOverride = null) => {
+    const getDashboardConfig = useCallback((scopeOverride = null, sk = null) => {
         const count = parseInt(localStorage.getItem(STORAGE_KEYS.WORKSPACE_COUNT) || '20', 10);
 
         const data = {
@@ -388,6 +392,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                 finnhubKey,
                 googleApiKey,
                 streamApiKey,
+                tmdbKey,
                 bgImages: typeof bgImages === 'string' ? bgImages.split('\n').filter(url => url.trim() !== '') : bgImages,
                 slideshowInterval: parseInt(slideshowInterval, 10),
                 isSlideshowEnabled,
@@ -410,6 +415,28 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
 
         const currentScope = scopeOverride || publishScope;
         const isRestricted = currentScope === 'workspace';
+
+        // Include Network Scanner Known Devices
+        const scannerRaw = localStorage.getItem('zulu7-network-scanner-known');
+        if (scannerRaw) {
+            // sk argument comes from handlePublish. If present, we obfuscate.
+            // If absent (handleExport), we write raw data.
+            if (sk) {
+                try {
+                    const encodedStr = encodeURIComponent(scannerRaw);
+                    let xorStr = '';
+                    for (let i = 0; i < encodedStr.length; i++) {
+                        xorStr += String.fromCharCode(encodedStr.charCodeAt(i) ^ sk.charCodeAt(i % sk.length));
+                    }
+                    data.scannerDataObfuscated = btoa(xorStr);
+                } catch(e) { console.error("Obfuscation error", e); }
+            } else {
+                try {
+                    data.scannerData = JSON.parse(scannerRaw);
+                } catch(e) {}
+            }
+        }
+
         if (isRestricted) {
             data.isRestricted = true;
             // Only include the active workspace, but NORMALIZE it to index 0
@@ -466,7 +493,13 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
         setPublishedUrl(null);
         try {
             const currentScope = scopeOverride || publishScope;
-            const config = getDashboardConfig(currentScope);
+            
+            // Generate a secure random key for obfuscating sensitive network data
+            const skChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let sk = '';
+            for(let i=0; i<8; i++) sk += skChars.charAt(Math.floor(Math.random() * skChars.length));
+
+            const config = getDashboardConfig(currentScope, sk);
 
             const res = await fetch('/api/publish', {
                 method: 'POST',
@@ -478,7 +511,8 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
 
             const data = await res.json();
             if (data.success && data.url) {
-                const fullUrl = `${window.location.protocol}//${window.location.host}${data.url}`;
+                // Append the secret key as a URL hash fragment so it is never sent to the server when accessed
+                const fullUrl = `${window.location.protocol}//${window.location.host}${data.url}#sk=${sk}`;
                 setPublishedUrl(fullUrl);
             } else {
                 throw new Error(data.error || "Unknown error");
@@ -520,6 +554,11 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                 // Restore History
                 if (data.history) {
                     localStorage.setItem(STORAGE_KEYS.DASHBOARD_HISTORY, JSON.stringify(data.history));
+                }
+                
+                // Restore Network Scanner if exists
+                if (data.scannerData) {
+                    localStorage.setItem('zulu7-network-scanner-known', JSON.stringify(data.scannerData));
                 }
 
                 // 2. Determine limits
@@ -735,7 +774,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                             <button
                                                 type="button"
                                                 onClick={() => copyToClipboard(finnhubKey, 'finnhub')}
-                                                className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-orange-500"
+                                                className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-zulu-orange"
                                                 title="Copy Key"
                                             >
                                                 {copiedId === 'finnhub' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
@@ -757,10 +796,42 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                             <button
                                                 type="button"
                                                 onClick={() => copyToClipboard(googleApiKey, 'google')}
-                                                className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-orange-500"
+                                                className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-zulu-orange"
                                                 title="Copy Key"
                                             >
                                                 {copiedId === 'google' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* TMDb */}
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">TMDb (Movie Posters)</span>
+                                            <a
+                                                href="https://www.themoviedb.org/documentation/api"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[9px] uppercase font-bold tracking-wider text-blue-400 hover:text-blue-300 transition-colors cursor-pointer"
+                                            >
+                                                Get API Key
+                                            </a>
+                                        </div>
+                                        <div className="p-2.5 bg-white/5 border border-white/10 rounded flex items-center gap-2 group/key">
+                                            <input
+                                                type="text"
+                                                value={tmdbKey}
+                                                onChange={(e) => setTmdbKey(e.target.value)}
+                                                className="bg-transparent border-none focus:ring-0 text-[11px] text-white/90 font-mono w-full select-all focus:outline-none placeholder-white/20"
+                                                placeholder="Enter TMDb API Key"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => copyToClipboard(tmdbKey, 'tmdb')}
+                                                className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-zulu-orange"
+                                                title="Copy Key"
+                                            >
+                                                {copiedId === 'tmdb' ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
                                             </button>
                                         </div>
                                     </div>
@@ -836,7 +907,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                                                 onBlur={() => setEditingNameIndex(null)}
                                                                 onKeyDown={(e) => e.key === 'Enter' && setEditingNameIndex(null)}
                                                                 className="bg-transparent border-none p-0 text-[11px] font-medium text-white focus:outline-none w-full outline-none"
-                                                                style={{ borderBottom: '1px solid #f97316' }}
+                                                                style={{ borderBottom: '1px solid #853d1a' }}
                                                             />
                                                         ) : (
                                                             <span
@@ -851,7 +922,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                                         type="checkbox"
                                                         checked={isChecked}
                                                         onChange={(e) => setDashboardRotationSelection({ ...dashboardRotationSelection, [originalIndex]: e.target.checked })}
-                                                        className="w-3.5 h-3.5 rounded-none border-white/10 bg-black/20 text-orange-500 focus:ring-orange-500/50 cursor-pointer"
+                                                        className="w-3.5 h-3.5 rounded-none border-white/10 bg-black/20 text-zulu-orange focus:ring-zulu-orange/50 cursor-pointer"
                                                     />
                                                 </div>
                                             </div>
@@ -993,7 +1064,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                     <button
                                         type="button"
                                         onClick={() => copyToClipboard(streamApiKey, 'streamKey')}
-                                        className="p-1.5 transition-all flex-shrink-0 cursor-pointer text-white/40 hover:text-orange-500"
+                                        className="p-1.5 transition-all flex-shrink-0 cursor-pointer text-white/40 hover:text-zulu-orange"
                                         title="Copy API Key"
                                     >
                                         {copiedId === 'streamKey' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -1023,7 +1094,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                     <button
                                         onClick={fetchStreams}
                                         title="Refresh Stream List"
-                                        className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-orange-500"
+                                        className="p-1 transition-all flex-shrink-0 cursor-pointer text-white/20 hover:text-zulu-orange"
                                     >
                                         <RefreshCw size={14} className={streamLoading ? 'animate-spin' : ''} />
                                     </button>
@@ -1156,7 +1227,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                                         setPublishScope('full');
                                                         handlePublish('full');
                                                     }}
-                                                    className={`px-3 py-1.5 border transition-all cursor-pointer flex items-center space-x-2 text-[10px] uppercase font-bold tracking-widest active:scale-95 ${publishScope === 'full' ? 'bg-orange-600 border-orange-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10'}`}
+                                                    className={`px-3 py-1.5 border transition-all cursor-pointer flex items-center space-x-2 text-[10px] uppercase font-bold tracking-widest active:scale-95 ${publishScope === 'full' ? 'bg-zulu-orange border-zulu-orange text-white shadow-lg' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10'}`}
                                                     title="Publish your entire dashboard with all workspaces"
                                                 >
                                                     <Monitor size={12} />
@@ -1168,7 +1239,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                                         setPublishScope('workspace');
                                                         handlePublish('workspace');
                                                     }}
-                                                    className={`px-3 py-1.5 border transition-all cursor-pointer flex items-center space-x-2 text-[10px] uppercase font-bold tracking-widest active:scale-95 ${publishScope === 'workspace' ? 'bg-orange-600 border-orange-500 text-white shadow-lg' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10'}`}
+                                                    className={`px-3 py-1.5 border transition-all cursor-pointer flex items-center space-x-2 text-[10px] uppercase font-bold tracking-widest active:scale-95 ${publishScope === 'workspace' ? 'bg-zulu-orange border-zulu-orange text-white shadow-lg' : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:bg-white/10'}`}
                                                     title="Publish only the current active workspace"
                                                 >
                                                     <Layout size={12} />
@@ -1196,7 +1267,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                                         />
                                                         <button
                                                             onClick={() => copyToClipboard(publishedUrl, 'url')}
-                                                            className="p-1.5 transition-all flex-shrink-0 cursor-pointer text-white/40 hover:text-orange-500"
+                                                            className="p-1.5 transition-all flex-shrink-0 cursor-pointer text-white/40 hover:text-zulu-orange"
                                                             title="Copy URL"
                                                         >
                                                             {copiedId === 'url' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
@@ -1226,13 +1297,13 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                             title="Download JSON Backup"
                                             className="flex items-center justify-center p-3 bg-white/5 border border-white/10 rounded-none hover:bg-white/10 transition-all group cursor-pointer"
                                         >
-                                            <FileDown size={20} className="text-white/40 group-hover:text-orange-500 transition-colors mr-3" />
+                                            <FileDown size={20} className="text-white/40 group-hover:text-zulu-orange transition-colors mr-3" />
                                             <span className="text-sm font-medium text-white">Export Backup</span>
                                         </button>
 
                                         {/* Import */}
                                         <label className="flex items-center justify-center p-3 bg-white/5 border border-white/10 rounded-none hover:bg-white/10 transition-all group cursor-pointer" title="Upload JSON Backup">
-                                            <FileUp size={20} className="text-white/40 group-hover:text-orange-500 transition-colors mr-3" />
+                                            <FileUp size={20} className="text-white/40 group-hover:text-zulu-orange transition-colors mr-3" />
                                             <span className="text-sm font-medium text-white">Import Backup</span>
                                             <input
                                                 type="file"
@@ -1268,7 +1339,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                             href="https://zulu7.net"
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs font-bold text-orange-500 tracking-[0.2em] uppercase hover:text-orange-400 transition-colors opacity-80 hover:opacity-100"
+                            className="text-xs font-bold text-zulu-orange tracking-[0.2em] uppercase hover:text-zulu-orange transition-colors opacity-80 hover:opacity-100"
                         >
                             Zulu7
                         </a>
@@ -1281,7 +1352,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                                     <span className="mx-1 text-white/10">,</span>
                                     <span title="15-Minute Load Average" className="cursor-pointer">{systemLoad.load15}</span>
                                     <span className="text-white/10 mx-2">|</span>
-                                    <span title="CPU Core Count" className="text-orange-500/80 cursor-pointer">{systemLoad.cores}</span>
+                                    <span title="CPU Core Count" className="text-zulu-orange/80 cursor-pointer">{systemLoad.cores}</span>
                                 </div>
                             </div>
                         )}
@@ -1297,7 +1368,7 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
                         <button
                             onClick={handleSave}
                             title="Apply and Save Settings"
-                            className="flex-1 bg-orange-600 hover:bg-orange-500 text-white py-3 px-6 text-sm font-bold uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-orange-500/20 active:scale-95 flex items-center justify-center gap-2 group"
+                            className="flex-1 bg-orange-600 hover:bg-orange-500 text-white py-3 px-6 text-sm font-bold uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-orange-600/20 active:scale-95 flex items-center justify-center gap-2 group"
                         >
                             <Save size={18} className="group-hover:scale-110 transition-transform" />
                             Save Changes

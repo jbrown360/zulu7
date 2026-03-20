@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zulu7 - Movie Posters</title>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --bg-dark: #0a0a0f;
+            --accent-blue: #60a5fa;
+            --zulu-orange: #a14a1f;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            background: var(--bg-dark);
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #999;
+        }
+
+        #poster-container {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            background: black;
+            transition: all 0.5s ease;
+        }
+
+        #poster-img {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            transition: transform 1s ease, object-fit 0.5s ease;
+        }
+
+        #poster-container:hover #poster-img {
+            transform: scale(1.05);
+        }
+
+        #poster-container:fullscreen {
+            background: black;
+        }
+
+        #poster-container:fullscreen #poster-img {
+            transform: none !important;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 60%, rgba(0, 0, 0, 0.3) 100%);
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            z-index: 10;
+            transition: all 0.3s ease;
+        }
+
+        #poster-container:fullscreen .info {
+            padding: 48px;
+            background: linear-gradient(to top, black, rgba(0, 0, 0, 0.4) 50%, transparent);
+        }
+
+        h2 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 4px;
+            line-clamp: 2;
+            display: -webkit-box;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        #poster-container:fullscreen h2 {
+            font-size: 48px;
+            margin-bottom: 12px;
+        }
+
+        p {
+            font-size: 10px;
+            opacity: 0.6;
+            font-weight: 500;
+        }
+
+        #poster-container:fullscreen p {
+            font-size: 24px;
+            color: var(--zulu-orange);
+            opacity: 1;
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.05);
+            position: relative;
+        }
+
+        #progress-bar {
+            height: 100%;
+            background: var(--zulu-orange);
+            width: 0%;
+            box-shadow: 0 0 8px rgba(161, 74, 31, 0.4);
+        }
+
+        .status {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 20;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .status.active {
+            opacity: 1;
+        }
+
+        .actions {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 30;
+        }
+
+        #poster-container:hover .actions,
+        #poster-container:fullscreen .actions {
+            opacity: 1;
+        }
+
+        .btn-rounded {
+            padding: 8px;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-rounded:hover {
+            background: rgba(0, 0, 0, 0.9);
+            color: #999;
+            transform: scale(1.05);
+        }
+
+        @keyframes progress {
+            from {
+                width: 0%;
+            }
+
+            to {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="poster-container">
+        <div id="status-overlay" class="status active">Loading Posters...</div>
+        <div class="actions">
+            <div id="maximize-btn" class="btn-rounded" title="Toggle Fullscreen">
+                <i data-lucide="maximize" style="width: 18px; height: 18px;"></i>
+            </div>
+        </div>
+        <img id="poster-img" src="" alt="">
+        <div class="overlay"></div>
+        <div class="info">
+            <h2 id="movie-title"></h2>
+            <p id="movie-year"></p>
+        </div>
+        <div class="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const genre = params.get('genre') || 'all';
+        const decade = params.get('decade') || 'all';
+        const interval = parseInt(params.get('interval') || '30', 10) * 1000;
+
+        let movies = [];
+        let currentIndex = 0;
+        let timer = null;
+
+        const ui = {
+            container: document.getElementById('poster-container'),
+            img: document.getElementById('poster-img'),
+            title: document.getElementById('movie-title'),
+            year: document.getElementById('movie-year'),
+            progress: document.getElementById('progress-bar'),
+            status: document.getElementById('status-overlay'),
+            maximizeBtn: document.getElementById('maximize-btn')
+        };
+
+        if (window.lucide) {
+            lucide.createIcons();
+        }
+
+        async function fetchMovies() {
+            try {
+                const genreParam = genre !== 'all' ? `&genre=${genre}` : '';
+                const decadeParam = decade !== 'all' ? `&decade=${decade}` : '';
+                const resp = await fetch(`/api/tmdb-discover?${genreParam}${decadeParam}`);
+                if (!resp.ok) throw new Error();
+                const data = await resp.json();
+                if (!data.movies || data.movies.length === 0) throw new Error();
+                movies = data.movies.sort(() => 0.5 - Math.random());
+                ui.status.classList.remove('active');
+                showMovie();
+                startTimer();
+            } catch (err) {
+                ui.status.textContent = "Error Loading Posters";
+                ui.status.classList.add('active');
+            }
+        }
+
+        function showMovie() {
+            if (movies.length === 0) return;
+            const movie = movies[currentIndex];
+            ui.img.src = movie.posterPath;
+            ui.title.textContent = movie.title;
+            ui.year.textContent = movie.releaseDate ? movie.releaseDate.split('-')[0] : '';
+            ui.progress.style.animation = 'none';
+            ui.progress.offsetHeight;
+            ui.progress.style.animation = `progress ${interval}ms linear forwards`;
+        }
+
+        function nextMovie() {
+            currentIndex = (currentIndex + 1) % movies.length;
+            showMovie();
+        }
+
+        function startTimer() {
+            if (timer) clearInterval(timer);
+            timer = setInterval(nextMovie, interval);
+        }
+
+        ui.container.addEventListener('click', (e) => {
+            if (e.target.closest('#maximize-btn')) return;
+            nextMovie();
+            startTimer();
+        });
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                ui.container.requestFullscreen().catch(err => { });
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        ui.maximizeBtn.addEventListener('click', toggleFullScreen);
+
+        document.addEventListener('fullscreenchange', () => {
+            const isFullscreen = !!document.fullscreenElement;
+            const icon = ui.maximizeBtn.querySelector('i');
+            const size = isFullscreen ? '28' : '18';
+            if (isFullscreen) icon.setAttribute('data-lucide', 'minimize');
+            else icon.setAttribute('data-lucide', 'maximize');
+            icon.style.width = `${size}px`;
+            icon.style.height = `${size}px`;
+            if (window.lucide) lucide.createIcons();
+        });
+
+        fetchMovies();
+    </script>
+</body>
+
+</html>

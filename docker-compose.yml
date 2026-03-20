@@ -12,6 +12,7 @@ services:
       - streamer
     volumes:
       - ./published_configs:/app/published_configs
+      - ./integrations:/app/integrations
 
   streamer:
     image: alexxit/go2rtc

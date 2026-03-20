@@ -36,7 +36,7 @@ video::-webkit-media-controls-enclosure {
 /* Custom Focus Indicators */
 :focus-visible {
   outline: none;
-  box-shadow: 0 3px 0 0 #f97316;
+  box-shadow: 0 3px 0 0 #853d1a;
   /* Standard shadow, not inset, to show above content */
   border-radius: 0;
   z-index: 100;
@@ -47,7 +47,7 @@ video::-webkit-media-controls-enclosure {
 button:focus-visible,
 a:focus-visible,
 iframe:focus-visible {
-  box-shadow: 0 3px 0 0 #f97316;
+  box-shadow: 0 3px 0 0 #853d1a;
 }
 
 .no-focus:focus-visible {

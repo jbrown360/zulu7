@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Plus, Monitor, Video, TrendingUp, Save, Trash2, Rss, CloudSun, Globe, Lock, LayoutGrid, Link, Tag, Layout, PlusCircle, Plug, ShieldAlert, Zap, Image, Activity, RefreshCw, AppWindow, ExternalLink, Download, Film, Code } from 'lucide-react';
+import { X, Plus, Monitor, Video, TrendingUp, Save, Trash2, Rss, CloudSun, Globe, Lock, LayoutGrid, Link, Tag, Layout, PlusCircle, Plug, ShieldAlert, Zap, Image, Activity, RefreshCw, AppWindow, ExternalLink, Download, Film, Code, Box, Copy, Check, Share2 } from 'lucide-react';
 
 const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, streamerUrl = 'http://localhost:1984', streamApiKey = '', onOpenSettings, settings, onUpdateSettings, onEditIntegration }) => {
     const [type, setType] = useState('iframe');
@@ -13,7 +13,43 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
     const [integrations, setIntegrations] = useState([]);
     const [tmdbApiKey, setTmdbApiKey] = useState('');
     const [isLocked, setIsLocked] = useState(false);
+    const [isCopied, setIsCopied] = useState(false);
     const isMounted = useRef(false);
+
+    const copyToClipboard = (text) => {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            }).catch(err => {
+                console.error('Async: Could not copy text: ', err);
+                fallbackCopyTextToClipboard(text);
+            });
+        } else {
+            fallbackCopyTextToClipboard(text);
+        }
+    };
+
+    const fallbackCopyTextToClipboard = (text) => {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+            var successful = document.execCommand('copy');
+            if (successful) {
+                setIsCopied(true);
+                setTimeout(() => setIsCopied(false), 2000);
+            }
+        } catch (err) {
+            console.error('Fallback: Oops, unable to copy', err);
+        }
+        document.body.removeChild(textArea);
+    };
 
     useEffect(() => {
         isMounted.current = true;
@@ -61,9 +97,20 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                     initialExtraValue = `${decade || ''}|${interval || '30'}`;
                     setType('integration');
                 } else if (editWidget.type === 'hdhomerun') {
-                    const [ip] = editWidget.value.split('|');
-                    initialValue = ip;
-                    initialExtraValue = '';
+                    initialType = 'integration';
+                    initialValue = 'hdhomerun';
+                    initialExtraValue = editWidget.value || '';
+                    setType('integration');
+                } else if (editWidget.type === 'network-scanner') {
+                    initialType = 'integration';
+                    initialValue = 'network-scanner';
+                    initialExtraValue = editWidget.value || '192.168.1.0/24|10|Network Scanner';
+                    setType('integration');
+                } else if (editWidget.type === 'clipboard') {
+                    // It's a built-in integration
+                    initialValue = 'clipboard';
+                    initialExtraValue = editWidget.value || '';
+                    setType('integration');
                 } else {
                     initialValue = editWidget.value;
                 }
@@ -208,6 +255,17 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             urlToSave = extraValue;
         }
 
+        if (type === 'integration' && value === 'network-scanner') {
+            submitType = 'network-scanner';
+            // extraValue will store the segment and interval e.g. "192.168.1.0/24|10"
+            urlToSave = extraValue || '192.168.1.0/24|10';
+        }
+
+        if (type === 'integration' && value === 'clipboard') {
+            submitType = 'clipboard';
+            urlToSave = extraValue || '|Clipboard'; // Key|DisplayName
+        }
+
         // Auto-convert YouTube links for iFrames
         if (submitType === 'iframe') {
             const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
@@ -290,6 +348,30 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
             }
 
             finalValue = `${urlToSave}|${name}|${icon || ''}`;
+        }
+        
+        if (submitType === 'network-scanner') {
+            const netParts = extraValue.split('|');
+            const segmentStr = netParts[0] || '192.168.1.0/24';
+            let intervalVal = parseInt(netParts[1], 10) || 30;
+            if (intervalVal < 10) intervalVal = 10;
+            const intervalStr = intervalVal.toString();
+            const dName = netParts[2] || 'Network Scanner';
+            // We need to pass the config along. The current `handleSaveWidget` in Zulu7Grid doesn't accept a custom config object directly for 'network-scanner',
+            // but we can pass it structured as a string and parse it in the grid, OR we realize `network-scanner` is NOT calling `onSave` cleanly.
+            // Wait, AddWidgetModal passes `finalValue` which is just `urlToSave`. Let's serialize the whole payload into `finalValue`!
+            finalValue = `${segmentStr}|${intervalStr}|${dName}`;
+            onSave(submitType, finalValue, editWidget ? editWidget.id : null);
+            setIsSubmitting(false);
+            onClose();
+            return;
+        }
+
+        if (submitType === 'clipboard') {
+            onSave('clipboard', finalValue, editWidget ? editWidget.id : null);
+            setIsSubmitting(false);
+            onClose();
+            return;
         }
 
         if (submitType === 'movie-posters' || submitType === 'movie-poster' || (submitType === 'integration' && (value === 'Movie-Posters' || value === 'Movie-Posters.html' || value === 'movie-poster' || value === 'movie-poster.html'))) {
@@ -399,12 +481,22 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                         {type === 'integration' ? (
                             <div className="space-y-4">
                                 <select
-                                    value={value === 'hdhomerun' ? 'hdhomerun' : (value.includes('|') ? value : integrations.find(i => i.value.startsWith(value))?.value || value)}
+                                    value={value === 'hdhomerun' ? 'hdhomerun' : value === 'network-scanner' ? 'network-scanner' : (value.includes('|') ? value : integrations.find(i => i.value.startsWith(value))?.value || value)}
                                     onChange={(e) => {
                                         const selectedValue = e.target.value;
                                         if (selectedValue === 'hdhomerun') {
                                             setValue('hdhomerun');
                                             setExtraValue('');
+                                        } else if (selectedValue === 'network-scanner') {
+                                            setValue('network-scanner');
+                                            setExtraValue('192.168.1.0/24|30|Network Scanner'); // Default segment, interval, and name
+                                        } else if (selectedValue === 'clipboard') {
+                                            setValue('clipboard');
+                                            // Pre-generate a key automatically for new Clipboards to make it intuitive
+                                            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                                            let result = '';
+                                            for (let i = 0; i < 16; i++) result += chars.charAt(Math.floor(Math.random() * chars.length));
+                                            setExtraValue(`${result}|Clipboard`); // Format: Key|DisplayName
                                         } else {
                                             setValue(selectedValue);
                                             if (!extraValue.split('|')[0] || selectedValue.includes('Movie-Posters')) {
@@ -424,7 +516,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                     className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-zulu-orange/50 appearance-none cursor-pointer"
                                 >
                                     <option value="" disabled className="bg-[#1a1a20]">Choose an Integration...</option>
-                                    {[{ value: 'hdhomerun', label: 'HDHomeRun Local TV' }, ...integrations]
+                                    {[{ value: 'hdhomerun', label: 'HDHomeRun Local TV' }, { value: 'network-scanner', label: 'Network Scanner' }, { value: 'clipboard', label: 'Clipboard' }, ...integrations]
                                         .sort((a, b) => a.label.localeCompare(b.label))
                                         .map(item => (
                                             <option key={item.value} value={item.value} className="bg-[#1a1a20]">{item.label}</option>
@@ -440,6 +532,103 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                                         className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
                                         autoFocus
                                     />
+                                )}
+                                {value === 'network-scanner' && (
+                                    <div className="mt-2 space-y-3">
+                                        <div>
+                                            <label className="text-[10px] uppercase text-gray-500 font-bold">Network Segment</label>
+                                            <input
+                                                type="text"
+                                                value={extraValue.split('|')[0] || ''}
+                                                onChange={(e) => {
+                                                    const parts = extraValue.split('|');
+                                                    setExtraValue(`${e.target.value}|${parts[1] || '30'}|${parts[2] || 'Network Scanner'}`);
+                                                }}
+                                                placeholder="192.168.1.0/24"
+                                                className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] uppercase text-gray-500 font-bold">Refresh Interval (Seconds)</label>
+                                            <input
+                                                type="number"
+                                                min="10"
+                                                value={extraValue.split('|')[1] || '30'}
+                                                onChange={(e) => {
+                                                    const parts = extraValue.split('|');
+                                                    setExtraValue(`${parts[0] || '192.168.1.0/24'}|${e.target.value}|${parts[2] || 'Network Scanner'}`);
+                                                }}
+                                                onBlur={(e) => {
+                                                    const parts = extraValue.split('|');
+                                                    let val = parseInt(e.target.value, 10);
+                                                    if (isNaN(val) || val < 15) val = 15;
+                                                    setExtraValue(`${parts[0] || '192.168.1.0/24'}|${val}|${parts[2] || 'Network Scanner'}`);
+                                                }}
+                                                placeholder="e.g. 30 (Min: 15)"
+                                                className="w-full bg-black/30 border border-white/10 rounded-none px-4 py-3 text-white placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                {value === 'clipboard' && (
+                                    <div className="space-y-4 pt-2">
+                                        <div className="bg-slate-900/50 p-4 rounded border border-blue-500/20">
+                                            <div className="flex items-center gap-2 mb-2 text-blue-400">
+                                                <Share2 size={16} />
+                                                <h4 className="font-semibold text-sm">Clipboard Configuration</h4>
+                                            </div>
+                                            <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                                                A Clipboard allows you to easily share files and text snippets between dashboards.
+                                                Dashboards with the same Share Key will access the same files.
+                                            </p>
+                                            
+                                            <div className="space-y-3">
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs uppercase tracking-wider text-slate-500 font-semibold pl-1">Share Key</label>
+                                                    <div className="flex gap-2">
+                                                        <input
+                                                            type="text"
+                                                            value={extraValue?.split('|')[0] || ''}
+                                                            onChange={(e) => {
+                                                                const parts = extraValue?.split('|') || ['', ''];
+                                                                setExtraValue(`${e.target.value}|${parts[1] || 'Clipboard'}`);
+                                                            }}
+                                                            className="flex-1 bg-black/40 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 transition-colors font-mono"
+                                                            placeholder="Enter a secure key (e.g. my-secret-share-123)"
+                                                        />
+                                                        <button
+                                                            onClick={() => {
+                                                                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+                                                                let result = '';
+                                                                for (let i = 0; i < 16; i++) {
+                                                                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                                                                }
+                                                                const parts = extraValue?.split('|') || ['', ''];
+                                                                setExtraValue(`${result}|${parts[1] || 'Clipboard'}`);
+                                                            }}
+                                                            className="bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 px-3 rounded text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap"
+                                                        >
+                                                            Generate Random
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex flex-col gap-1.5">
+                                                    <label className="text-xs uppercase tracking-wider text-slate-500 font-semibold pl-1">Display Name (Optional)</label>
+                                                    <input
+                                                        type="text"
+                                                        value={extraValue?.split('|')[1] || ''}
+                                                        onChange={(e) => {
+                                                            const parts = extraValue?.split('|') || ['', ''];
+                                                            setExtraValue(`${parts[0]}|${e.target.value}`);
+                                                        }}
+                                                        className="w-full bg-black/40 border border-white/10 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500/50 transition-colors"
+                                                        placeholder="e.g. Project Resources"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 )}
                             </div>
                         ) : (type === 'rss' || type === 'media') ? (
@@ -580,9 +769,9 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
                             </div>
                         )}
 
-                        {/* Icon/Iframe/RSS/Camera/RBI Widget Extra Fields */}
-                        {(type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy' || (type === 'integration' && !value?.includes('Movie-Posters'))) && (
-                            <div className="space-y-2 mt-2 pt-2 border-t border-white/5 animate-in slide-in-from-top-2">
+                        {/* Extra Configuration Options */}
+                        {(type === 'icon' || type === 'iframe' || type === 'rss' || type === 'camera' || type === 'proxy' || (type === 'integration' && !value?.includes('Movie-Posters') && value !== 'network-scanner' && value !== 'clipboard')) && (
+                            <div className="flex flex-col gap-1.5 pt-4 border-t border-white/5">
                                 <div>
                                     <label className="text-xs font-medium text-gray-400 uppercase tracking-wider flex items-center">
                                         Display Name (Optional)
@@ -651,7 +840,7 @@ const AddWidgetModal = ({ isOpen, onClose, onSave, onDelete, editWidget = null, 
 
 
                         {/* Integration Editor Button (Only for Integration Widgets, and only if not globally locked) */}
-                        {type === 'integration' && value && !isLocked && (
+                        {type === 'integration' && value && !['hdhomerun', 'network-scanner', 'clipboard'].includes(value) && !isLocked && (
                             <div className="mt-4 animate-in slide-in-from-top-2">
                                 <button
                                     type="button"

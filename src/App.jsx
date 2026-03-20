@@ -3,6 +3,8 @@ import Zulu7Grid from './components/Zulu7Grid';
 import SettingsModal from './components/SettingsModal';
 import { Settings } from 'lucide-react';
 import { STORAGE_KEYS } from './utils/constants';
+import { Routes, Route } from 'react-router-dom';
+import StandaloneClipboard from './components/StandaloneClipboard';
 
 function App() {
   const [settings, setSettings] = useState({
@@ -19,7 +21,8 @@ function App() {
     workspaceRotationInterval: 300,
     instagramClientId: '',
     instagramClientSecret: '',
-    instagramAccessToken: ''
+    instagramAccessToken: '',
+    tmdbKey: ''
   });
   const [currentBgIndex, setCurrentBgIndex] = useState(0);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -88,6 +91,7 @@ function App() {
             streamerUrl: '',
             finnhubKey: '',
             googleApiKey: '',
+            tmdbKey: '',
             streamApiKey: '', // Will be generated if missing
             isWorkspaceRotationEnabled: false,
             workspaceRotationInterval: 300
@@ -160,6 +164,29 @@ function App() {
             initialSettings.isRestricted = true;
           }
 
+          // Restore Network Scanner Data
+          try {
+            if (config.scannerData) {
+              localStorage.setItem('zulu7-network-scanner-known', JSON.stringify(config.scannerData));
+            } else if (config.scannerDataObfuscated) {
+              const hashParams = new URLSearchParams(window.location.hash.slice(1));
+              const sk = hashParams.get('sk');
+              if (sk) {
+                const decodedB64 = atob(config.scannerDataObfuscated);
+                let unXor = '';
+                for (let i = 0; i < decodedB64.length; i++) {
+                  unXor += String.fromCharCode(decodedB64.charCodeAt(i) ^ sk.charCodeAt(i % sk.length));
+                }
+                const rawScannerData = decodeURIComponent(unXor);
+                // Validate it's valid JSON
+                JSON.parse(rawScannerData);
+                localStorage.setItem('zulu7-network-scanner-known', rawScannerData);
+              }
+            }
+          } catch (err) {
+            console.error("Failed to restore network scanner data:", err);
+          }
+
           // Only overwrite from URL if parameter was actually specified
           if (workspaceParam !== null && !isNaN(targetWorkspace)) {
             initialSettings.activeWorkspace = targetWorkspace;
@@ -227,6 +254,7 @@ function App() {
             streamerUrl: '',
             finnhubKey: '',
             googleApiKey: '',
+            tmdbKey: '',
             streamApiKey: Array.from(crypto.getRandomValues(new Uint8Array(16)))
               .map(b => b.toString(16).padStart(2, '0')).join(''),
             isWorkspaceRotationEnabled: false,
@@ -274,6 +302,7 @@ function App() {
             streamerUrl: '',
             finnhubKey: '',
             googleApiKey: '',
+            tmdbKey: '',
             streamApiKey: newKey,
             isWorkspaceRotationEnabled: false,
             workspaceRotationInterval: 300
@@ -294,11 +323,14 @@ function App() {
   }, []);
 
   // Save settings
-  const handleSaveSettings = (newSettings) => {
-    setSettings(newSettings);
-    if (!isEphemeralMode) {
-      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(newSettings));
-    }
+  const handleSaveSettings = (newSettingsUpdater) => {
+    setSettings((prev) => {
+      const newSettings = typeof newSettingsUpdater === 'function' ? newSettingsUpdater(prev) : { ...prev, ...newSettingsUpdater };
+      if (!isEphemeralMode) {
+        localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(newSettings));
+      }
+      return newSettings;
+    });
     setCurrentBgIndex(0); // Reset slideshow
   };
 
@@ -372,82 +404,87 @@ function App() {
   console.log("App Rendering...");
   return (
     <div className="App bg-gray-950 min-h-screen text-white overflow-x-hidden relative transition-all duration-1000 ease-in-out">
-      {/* Dynamic Background */}
-      {currentBg && (
-        <div
-          className="fixed inset-0 z-0 bg-cover bg-center transition-all duration-1000 ease-in-out opacity-40"
-          style={{ backgroundImage: `url(${currentBg})` }}
-        />
-      )}
+      <Routes>
+        <Route path="/" element={
+          <>
+            {/* Dynamic Background */}
+            {currentBg && (
+              <div
+                className="fixed inset-0 z-0 bg-cover bg-center transition-all duration-1000 ease-in-out opacity-40"
+                style={{ backgroundImage: `url(${currentBg})` }}
+              />
+            )}
 
-      {/* Default Gradient Fallback (visible if no image or underneath) */}
-      <div className={`fixed inset-0 z-0 pointer-events-none ${currentBg ? 'opacity-30' : 'opacity-100'}`} />
+            {/* Default Gradient Fallback (visible if no image or underneath) */}
+            <div className={`fixed inset-0 z-0 pointer-events-none ${currentBg ? 'opacity-30' : 'opacity-100'}`} />
 
-      <div className="relative z-10">
-        {configLoaded ? (
-          <Zulu7Grid
-            key={refreshKey}
-            onOpenSettings={(tab = 'general', wsIndex = 0) => {
-              setCurrentActiveWorkspace(wsIndex);
-              setSettingsTab(tab);
-              setIsSettingsOpen(true);
-            }}
-            settings={settings}
-            onUpdateSettings={handleSaveSettings}
-            disablePersistence={isEphemeralMode}
-            initialWorkspaces={ephemeralWorkspaces}
-            initialActiveWorkspace={currentActiveWorkspace}
-            isRestricted={settings.isRestricted}
-          />
-        ) : loadError ? (
-          <div className="min-h-screen flex flex-col items-center justify-center text-white p-8 text-center">
-            <div className="mb-6">
-              <img src="/favicon.svg" alt="Zulu7 Logo" className="w-16 h-16" />
+            <div className="relative z-10">
+              {configLoaded ? (
+                <Zulu7Grid
+                  key={refreshKey}
+                  onOpenSettings={(tab = 'general', wsIndex = 0) => {
+                    setCurrentActiveWorkspace(wsIndex);
+                    setSettingsTab(tab);
+                    setIsSettingsOpen(true);
+                  }}
+                  settings={settings}
+                  onUpdateSettings={handleSaveSettings}
+                  disablePersistence={isEphemeralMode}
+                  initialWorkspaces={ephemeralWorkspaces}
+                  initialActiveWorkspace={currentActiveWorkspace}
+                  isRestricted={settings.isRestricted}
+                />
+              ) : loadError ? (
+                <div className="min-h-screen flex flex-col items-center justify-center text-white p-8 text-center">
+                  <div className="mb-6">
+                    <img src="/favicon.svg" alt="Zulu7 Logo" className="w-16 h-16" />
+                  </div>
+                  <h1 className="text-2xl font-bold mb-6">Invalid Dashboard Key</h1>
+                  <button
+                    onClick={() => { window.location.href = '/'; }}
+                    className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded text-sm font-medium transition-colors cursor-pointer"
+                    title="Return to your local configuration"
+                  >
+                    Return to Local Dashboard
+                  </button>
+                </div>
+              ) : (
+                <div className="min-h-screen flex items-center justify-center text-white/50">
+                  Loading...
+                </div>
+              )}
             </div>
-            <h1 className="text-2xl font-bold mb-6">Invalid Dashboard Key</h1>
-            <button
-              onClick={() => { window.location.href = '/'; }}
-              className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded text-sm font-medium transition-colors cursor-pointer"
-              title="Return to your local configuration"
+
+            {isSettingsOpen && (
+              <SettingsModal
+                isOpen={isSettingsOpen}
+                onClose={() => setIsSettingsOpen(false)}
+                onSave={handleSaveSettings}
+                initialSettings={settings}
+                activeTab={settingsTab}
+                setActiveTab={setSettingsTab}
+                activeWorkspace={currentActiveWorkspace}
+              />
+            )}
+
+            {/* Z Logo (Bottom Right) */}
+            <div
+              className="fixed bottom-2 right-6 z-50 opacity-80 hover:opacity-100 transition-all duration-300 hover:scale-125 cursor-pointer"
+              onClick={() => {
+                window.location.href = '/default.html';
+              }}
+              title="Zulu7"
             >
-              Return to Local Dashboard
-            </button>
-          </div>
-        ) : (
-          <div className="min-h-screen flex items-center justify-center text-white/50">
-            Loading...
-          </div>
-        )}
-      </div>
-
-
-      {isSettingsOpen && (
-        <SettingsModal
-          isOpen={isSettingsOpen}
-          onClose={() => setIsSettingsOpen(false)}
-          onSave={handleSaveSettings}
-          initialSettings={settings}
-          activeTab={settingsTab}
-          setActiveTab={setSettingsTab}
-          activeWorkspace={currentActiveWorkspace}
-        />
-      )}
-
-
-      {/* Z Logo (Bottom Right) */}
-      <div
-        className="fixed bottom-2 right-6 z-50 opacity-80 hover:opacity-100 transition-all duration-300 hover:scale-125 cursor-pointer"
-        onClick={() => {
-          window.location.href = '/default.html';
-        }}
-        title="Zulu7"
-      >
-        <img
-          src="/icon.svg"
-          alt="Zulu7"
-          className="w-[34px] h-[34px] drop-shadow-lg"
-        />
-      </div>
+              <img
+                src="/icon.svg"
+                alt="Zulu7"
+                className="w-[34px] h-[34px] drop-shadow-lg"
+              />
+            </div>
+          </>
+        } />
+        <Route path="/clipboard/:key" element={<StandaloneClipboard />} />
+      </Routes>
     </div>
   );
 }

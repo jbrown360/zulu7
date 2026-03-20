@@ -3,8 +3,8 @@ import { Loader2, AlertTriangle, Maximize, Minimize } from 'lucide-react';
 
 const MediaWidget = ({ widget, isLocked }) => {
     // Widget Value format: "url|intervalSeconds"
-    const [rawUrl = '', intervalStr = '180'] = (widget.value || '').split('|');
-    const intervalMs = (parseInt(intervalStr, 10) || 180) * 1000;
+    const [rawUrl = '', intervalStr = '10'] = (widget.value || '').split('|');
+    const intervalMs = (parseInt(intervalStr, 10) || 10) * 1000;
 
     const [mediaList, setMediaList] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
@@ -13,12 +13,38 @@ const MediaWidget = ({ widget, isLocked }) => {
     const [isVideoPlaying, setIsVideoPlaying] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [videoDuration, setVideoDuration] = useState(0);
+    const [isVisible, setIsVisible] = useState(true);
 
     const videoRef = useRef(null);
     const timerRef = useRef(null);
     const videoLoadTimeoutRef = useRef(null);
     const containerRef = useRef(null);
     const progressBarRef = useRef(null);
+
+    // Visibility tracking (Hibernation)
+    useEffect(() => {
+        if (!containerRef.current) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => setIsVisible(entry.isIntersecting),
+            { threshold: 0.1 }
+        );
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
+
+    // Tab Background tracking
+    useEffect(() => {
+        const handleVisibilityChange = () => {
+            // Re-sync video playback if needed
+            if (document.visibilityState === 'visible' && isVisible && isVideoPlaying) {
+                videoRef.current?.play().catch(() => { });
+            } else if (document.visibilityState === 'hidden') {
+                videoRef.current?.pause();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }, [isVisible, isVideoPlaying]);
 
     // Fetch Media List
     useEffect(() => {
@@ -105,8 +131,8 @@ const MediaWidget = ({ widget, isLocked }) => {
     useEffect(() => {
         if (timerRef.current) clearTimeout(timerRef.current);
 
-        if (isLoading || error || mediaList.length === 0) {
-            console.log("[MediaWidget] Timer blocked:", { isLoading, error, listSize: mediaList.length });
+        if (isLoading || error || mediaList.length === 0 || !isVisible || document.visibilityState !== 'visible') {
+            console.log("[MediaWidget] Timer blocked:", { isLoading, error, listSize: mediaList.length, isVisible, visibilityState: document.visibilityState });
             return;
         }
 
@@ -124,7 +150,7 @@ const MediaWidget = ({ widget, isLocked }) => {
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
         };
-    }, [currentIndex, mediaList, isLoading, error, intervalMs]);
+    }, [currentIndex, mediaList, isLoading, error, intervalMs, isVisible]);
 
     // Fullscreen event listener handling
     useEffect(() => {
@@ -155,7 +181,7 @@ const MediaWidget = ({ widget, isLocked }) => {
     // Initial loading of list
     if (isLoading && mediaList.length === 0) {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-black/50 text-white/50">
+            <div className="w-full h-full flex flex-col items-center justify-center bg-black/50 text-[#999]/50">
                 <Loader2 size={32} className="animate-spin mb-2" />
                 <span className="text-sm font-medium">Loading Media...</span>
             </div>
@@ -224,8 +250,13 @@ const MediaWidget = ({ widget, isLocked }) => {
                             }
                             if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
                             setIsLoading(false);
-                            setIsVideoPlaying(true);
-                            videoRef.current?.play().catch(e => console.warn("[MediaWidget] Play failed:", e));
+
+                            if (isVisible && document.visibilityState === 'visible') {
+                                setIsVideoPlaying(true);
+                                videoRef.current?.play().catch(e => console.warn("[MediaWidget] Play failed:", e));
+                            } else {
+                                setIsVideoPlaying(false);
+                            }
                         }}
                         onPlay={() => console.log("[MediaWidget] Video playing")}
                         onTimeUpdate={(e) => {
@@ -285,7 +316,7 @@ const MediaWidget = ({ widget, isLocked }) => {
                     <div
                         ref={progressBarRef}
                         key={`progress-${currentIndex}-${isVideo ? 'video' : 'image'}`}
-                        className={`absolute bottom-0 left-0 h-full transition-all pointer-events-none ${(isLoading && isVideo) ? 'bg-orange-600/50 animate-pulse duration-1000' : 'bg-orange-500/80 duration-100 ease-linear'}`}
+                        className={`absolute bottom-0 left-0 h-full transition-all pointer-events-none ${(isLoading && isVideo) ? 'bg-zulu-orange/50 animate-pulse duration-1000' : 'bg-zulu-orange duration-100 ease-linear'}`}
                         style={{
                             animation: (isLoading || isVideo) ? 'none' : `progress-bar ${intervalMs}ms linear forwards`,
                             width: (isLoading && isVideo) ? '100%' : '0%'

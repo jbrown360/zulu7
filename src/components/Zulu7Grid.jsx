@@ -8,9 +8,10 @@ import { STORAGE_KEYS } from '../utils/constants';
 import WidgetRenderer from './WidgetRenderer';
 import AddWidgetModal from './AddWidgetModal';
 import Zulu7Header from './Zulu7Header';
-import { X, GripHorizontal, RefreshCw, CloudSun, Video, Rss, TrendingUp, Minimize, Maximize, Cast, SlidersHorizontal, Image, Activity, Zap, Plug, AppWindow } from 'lucide-react';
+import { X, GripHorizontal, RefreshCw, CloudSun, Video, Rss, TrendingUp, Minimize, Maximize, Cast, SlidersHorizontal, Image, Activity, Zap, Plug, AppWindow, Box } from 'lucide-react';
 
 import CalendarOverlay from './CalendarOverlay';
+import IntegrationFullscreenEditor from './IntegrationFullscreenEditor';
 
 const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersistence = false, initialWorkspaces = null, initialActiveWorkspace, isRestricted = false }) => {
     // State now holds ALL workspaces
@@ -42,6 +43,8 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
     const [mounted, setMounted] = useState(false);
     const [isManualFullScreen, setIsManualFullScreen] = useState(false);
     const [alertStates, setAlertStates] = useState({}); // { widgetId: { status, isVibrating } }
+    const [isIntegrationEditorOpen, setIsIntegrationEditorOpen] = useState(false);
+    const [activeIntegrationFile, setActiveIntegrationFile] = useState(null);
 
     const [history, setHistory] = useState([]); // Stack of workspace states
 
@@ -129,7 +132,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
 
     const stopRotation = () => {
         if (settings?.isWorkspaceRotationEnabled) {
-            onUpdateSettings({ ...settings, isWorkspaceRotationEnabled: false });
+            onUpdateSettings(prev => ({ ...prev, isWorkspaceRotationEnabled: false }));
         }
     };
 
@@ -171,7 +174,28 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
             }
         };
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+
+        const handleFocusWidget = (e) => {
+            const { widgetId } = e.detail;
+            if (widgetId) {
+                const wsKeys = Object.keys(workspaces);
+                for (let i = 0; i < wsKeys.length; i++) {
+                    const key = wsKeys[i];
+                    if (workspaces[key]?.widgets?.some(w => w.id === widgetId)) {
+                        setActiveWorkspace(parseInt(key, 10));
+                        stopRotation();
+                        resetAutoLock();
+                        break;
+                    }
+                }
+            }
+        };
+        window.addEventListener('focus-widget', handleFocusWidget);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('focus-widget', handleFocusWidget);
+        };
     }, [isLocked, workspaces, workspaceCount, settings, onUpdateSettings]);
 
     // Cast Support
@@ -227,6 +251,88 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
         window.addEventListener('zulu7-widget-alert', handleAlert);
         return () => window.removeEventListener('zulu7-widget-alert', handleAlert);
     }, []);
+
+    // Global Network Scanner Monitor
+    useEffect(() => {
+        const netWidgets = [];
+        
+        // Accumulate ALL network scanner widgets across ALL workspaces!
+        const wsKeys = Object.keys(workspaces);
+        for (let i = 0; i < wsKeys.length; i++) {
+            const key = wsKeys[i];
+            const widgets = workspaces[key]?.widgets?.filter(w => w.type === 'network-scanner') || [];
+            widgets.forEach(w => netWidgets.push({ widget: w, wsIndex: key }));
+        }
+
+        if (netWidgets.length === 0) return;
+
+        // Take the most frequent interval out of all widgets, fallback to 30s
+        let minInterval = 30;
+        netWidgets.forEach(({ widget }) => {
+            const segmentStr = widget.value || '192.168.1.0/24';
+            const parts = segmentStr.split('|');
+            const interval = widget.config?.api_params?.interval || parseInt(parts[1], 10) || 30;
+            if (interval < minInterval) minInterval = interval;
+        });
+        
+        const checkNetwork = async (isInitial = false) => {
+            try {
+                const endpoint = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') 
+                    ? `http://${window.location.hostname}:8080/api/network-scan` 
+                    : '/api/network-scan';
+                
+                let foundNewUnknown = false;
+                let targetWidgetId = null;
+
+                // Loop through EVERY subnet widget found and ping them individually!
+                for (let i = 0; i < netWidgets.length; i++) {
+                    const { widget } = netWidgets[i];
+                    const segmentStr = widget.value || '192.168.1.0/24';
+                    const parts = segmentStr.split('|');
+                    const segment = widget.config?.api_params?.segment || parts[0] || '192.168.1.0/24';
+                    const interval = widget.config?.api_params?.interval || parseInt(parts[1], 10) || 30;
+
+                    // Actively force a scan every time the background loop ticks
+                    const res = await fetch(`${endpoint}?segment=${encodeURIComponent(segment)}&interval=${interval}&force=true&t=${Date.now()}`);
+                    const data = await res.json();
+                    
+                    const devices = Array.isArray(data) ? data : (data.devices || []);
+                    const knownDevices = JSON.parse(localStorage.getItem('zulu7-network-scanner-known') || '{}');
+                    
+                    const newUnknowns = devices.filter(d => !knownDevices[d.id]);
+                    
+                    if (newUnknowns.length > 0) {
+                        foundNewUnknown = true;
+                        targetWidgetId = widget.id;
+                        break; // Stop scanning further subnets and immediately shift focus!
+                    }
+                }
+
+                if (foundNewUnknown && targetWidgetId) {
+                    window.dispatchEvent(new CustomEvent('focus-widget', { detail: { widgetId: targetWidgetId } }));
+                    
+                    if (!window.__zulu7_last_audio_alert || (Date.now() - window.__zulu7_last_audio_alert > 30000)) {
+                        window.__zulu7_last_audio_alert = Date.now();
+                        const audio = new Audio('/unknown_device.mp3');
+                        audio.play().catch(err => console.error("Audio playback failed:", err));
+                    }
+                }
+            } catch (err) {
+                console.error("Global Network Monitor Error", err);
+            }
+        };
+
+        // Run once on mount if we haven't already
+        if (!window.__zulu7_global_net_init) {
+            window.__zulu7_global_net_init = true;
+            checkNetwork(true);
+        }
+
+        // Poll the network according to the configured interval (in seconds), minimum 10s
+        const pollMs = Math.max(10000, minInterval * 1000);
+        const pollTimer = setInterval(() => checkNetwork(false), pollMs);
+        return () => clearInterval(pollTimer);
+    }, [workspaces]);
 
     const handleCast = async () => {
         let castUrl = window.location.href;
@@ -793,9 +899,9 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
 
             const maxY = layout.length > 0 ? Math.max(...layout.map(l => l.y + l.h)) : 0;
             // Ticker/Service: 2x1, Icon: 1x1, Iframe-like/RSS/HDHomeRun: 6x4, Weather: 4x4, Media: 3x5, Camera: 3x2, Others: 12x8
-            const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration', 'hdhomerun'].includes(type);
+            const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration', 'hdhomerun', 'clipboard'].includes(type);
             const is2x1 = ['ticker', 'service'].includes(type);
-            const defaultW = is2x1 ? 2 : type === 'icon' ? 1 : type === 'weather' ? 4 : (type === 'media' || type === 'camera') ? 3 : (type === 'movie-posters' || type === 'movie-poster') ? 6 : isIframeLike ? 6 : 12;
+            const defaultW = is2x1 ? 2 : type === 'icon' ? 1 : type === 'weather' ? 4 : (type === 'media' || type === 'camera') ? 3 : (type === 'movie-posters' || type === 'movie-poster') ? 6 : (isIframeLike || type === 'clipboard') ? 6 : 12;
             const defaultH = is2x1 ? 1 : type === 'icon' ? 1 : type === 'weather' ? 4 : type === 'media' ? 5 : type === 'camera' ? 2 : (type === 'movie-posters' || type === 'movie-poster') ? 9 : isIframeLike ? 4 : 8;
 
             const newWidget = {
@@ -896,7 +1002,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
             if (l.i === id) {
                 if (!nextMaximized) {
                     // Shrink to pre-maximized size or default V2 sizes
-                    const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration'].includes(widget.type);
+                    const isIframeLike = ['iframe', 'proxy', 'web', 'rss', 'integration', 'clipboard'].includes(widget.type);
                     const is2x1 = ['ticker', 'service'].includes(widget.type);
                     const defaultW = is2x1 ? 2 : widget.type === 'icon' ? 1 : widget.type === 'weather' ? 4 : (widget.type === 'media' || widget.type === 'camera') ? 3 : isIframeLike ? 6 : 12;
                     const defaultH = is2x1 ? 1 : widget.type === 'icon' ? 1 : widget.type === 'weather' ? 4 : widget.type === 'media' ? 5 : widget.type === 'camera' ? 2 : isIframeLike ? 4 : 8;
@@ -1109,6 +1215,10 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                                     <span className="text-xs font-bold truncate opacity-80">{title}</span>
                                                 </>
                                             );
+                                        })() : widget.type === 'clipboard' ? (() => {
+                                            const [key, displayName] = (widget.value || '').split('|');
+                                            const title = displayName || 'Clipboard';
+                                            return <><Box size={14} className="text-blue-400" />{title}</>;
                                         })() : widget.type === 'integration' ? (() => {
                                             const [url, displayName] = (widget.value || '').split('|');
                                             const title = displayName || url.split('/').pop().replace('.html', '');
@@ -1172,7 +1282,7 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                                     onTouchStart={(e) => e.stopPropagation()}
                                     onMouseDown={(e) => e.stopPropagation()}
                                 >
-                                    {['iframe', 'proxy', 'web', 'camera', 'rss', 'integration'].includes(widget.type) && (
+                                    {['iframe', 'proxy', 'web', 'camera', 'rss', 'integration', 'network-scanner', 'clipboard'].includes(widget.type) && (
                                         <>
                                             <button
                                                 className="w-7 h-7 flex items-center justify-center text-white/70 hover:text-orange-500 transition-colors cursor-pointer no-focus"
@@ -1319,7 +1429,17 @@ const Zulu7Grid = ({ onOpenSettings, settings, onUpdateSettings, disablePersiste
                 onOpenSettings={onOpenSettings}
                 settings={settings}
                 onUpdateSettings={onUpdateSettings}
-                onEditIntegration={() => { }}
+                onEditIntegration={(filename) => {
+                    setActiveIntegrationFile(filename);
+                    setIsIntegrationEditorOpen(true);
+                    setIsModalOpen(false); // Close parent modal
+                }}
+            />
+
+            <IntegrationFullscreenEditor
+                isOpen={isIntegrationEditorOpen}
+                filename={activeIntegrationFile}
+                onClose={() => setIsIntegrationEditorOpen(false)}
             />
 
             <CalendarOverlay

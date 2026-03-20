@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Activity, RefreshCw } from 'lucide-react';
 
 const ServiceWidget = ({ widget, isLocked }) => {
@@ -66,27 +66,35 @@ const ServiceWidget = ({ widget, isLocked }) => {
         };
     }, [url, type, port, intervalMs, widget.reloadVersion]);
 
-    // Dedicated 5s Vibration Interval for Failed Checks
+    // Dedicated Vibration Interval for Failed Checks (Randomized Stagger)
+    const jitter = useMemo(() => Math.random() * 3000, [widget.id]);
+
     useEffect(() => {
         if (status !== 'down') {
             setIsVibrating(false);
             return;
         }
 
-        const vibrateBurst = () => {
-            // Only update state if visible and focused
-            if (isVisible && document.visibilityState === 'visible') {
-                setIsVibrating(true);
-                setTimeout(() => setIsVibrating(false), 1000);
-            }
+        let interval;
+        const startVibration = () => {
+            const vibrateBurst = () => {
+                // Only update state if visible and focused
+                if (isVisible && document.visibilityState === 'visible') {
+                    setIsVibrating(true);
+                    setTimeout(() => setIsVibrating(false), 1000);
+                }
+            };
+
+            vibrateBurst();
+            interval = setInterval(vibrateBurst, 3000);
         };
 
-        // Initial burst if it just went down
-        vibrateBurst();
-
-        const interval = setInterval(vibrateBurst, 3000); // Every 3 seconds
-        return () => clearInterval(interval);
-    }, [status, isVisible]);
+        const timeout = setTimeout(startVibration, jitter);
+        return () => {
+            clearTimeout(timeout);
+            if (interval) clearInterval(interval);
+        };
+    }, [status, isVisible, jitter]);
 
     // Dispatch custom event for grid-level alerts
     useEffect(() => {
@@ -137,7 +145,7 @@ const ServiceWidget = ({ widget, isLocked }) => {
                 <div className="absolute top-1 right-1 z-30">
                     <button
                         onClick={handleManualRefresh}
-                        className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-white/70 hover:text-orange-500 transition-colors cursor-pointer"
+                        className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-white/70 hover:text-zulu-orange transition-colors cursor-pointer"
                         title="Force Health Check"
                     >
                         <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
@@ -145,9 +153,14 @@ const ServiceWidget = ({ widget, isLocked }) => {
                 </div>
             )}
 
+            {/* Background Siren Glow */}
+            {status === 'down' && (
+                <div className="absolute top-0 left-0 w-64 h-64 blur-[60px] rounded-full animate-siren-intense pointer-events-none z-0 -translate-x-1/2 -translate-y-1/2 opacity-40 overflow-hidden" />
+            )}
+
             <div className={`flex flex-col items-center gap-1 transition-transform duration-300 ${isLocked ? 'group-hover:scale-105' : ''}`}>
                 <div className="text-center">
-                    <h3 className="text-xl font-black uppercase tracking-tighter drop-shadow-md truncate max-w-[180px]">
+                    <h3 className="text-xl font-black uppercase tracking-tighter drop-shadow-md truncate max-w-[180px] text-[#999]">
                         {name}
                     </h3>
                     <p className="text-[10px] font-bold opacity-60 uppercase tracking-widest mt-0.5">
@@ -155,8 +168,8 @@ const ServiceWidget = ({ widget, isLocked }) => {
                     </p>
                 </div>
 
-                <div className={`mt-2 flex items-center gap-1.5 px-4 py-1.5 bg-black/30 rounded-none border transition-colors ${isLocked ? 'group-hover:bg-black/50' : ''} ${status === 'disabled' ? 'border-amber-500/30' : isUp ? 'border-emerald-500/30' : status === 'down' ? 'border-rose-500/30' : 'border-white/5'}`}>
-                    <span className={`text-[11px] font-black uppercase tracking-[0.2em] ${status === 'disabled' ? 'text-amber-400' : isUp ? 'text-emerald-400' : status === 'down' ? 'text-rose-400' : 'text-white/50'}`}>
+                <div className={`mt-2 relative flex items-center gap-1.5 px-4 py-1.5 bg-black/30 rounded-none border transition-colors overflow-hidden ${isLocked ? 'group-hover:bg-black/50' : ''} ${status === 'disabled' ? 'border-amber-600/30' : isUp ? 'border-emerald-600/30' : status === 'down' ? 'border-red-600/50 shadow-[0_0_10px_rgba(185,28,28,0.2)]' : 'border-white/5'}`}>
+                    <span className={`text-[11px] font-black uppercase tracking-[0.2em] ${status === 'disabled' ? 'text-amber-600/70' : isUp ? 'text-emerald-600/70' : status === 'down' ? 'text-rose-500 animate-pulse' : 'text-white/50'}`}>
                         {status === 'disabled' ? 'DISABLED' : status === 'loading' ? 'CHECKING...' : isUp ? 'ONLINE' : 'OFFLINE'}
                     </span>
                 </div>
@@ -167,6 +180,16 @@ const ServiceWidget = ({ widget, isLocked }) => {
                     LAST: {lastCheck}
                 </div>
             )}
+
+            <style dangerouslySetInnerHTML={{
+                __html: `
+                @keyframes siren-intense {
+                    0%, 25% { background-color: rgba(239, 68, 68, 0.8); filter: blur(60px); transform: translate(-50%, -50%) scale(1); }
+                    30%, 75% { background-color: rgba(0, 71, 255, 0.8); filter: blur(80px); transform: translate(-45%, -45%) scale(1.4); }
+                    80%, 100% { background-color: rgba(239, 68, 68, 0.8); filter: blur(60px); transform: translate(-50%, -50%) scale(1); }
+                }
+                .animate-siren-intense { animation: siren-intense 0.8s steps(10) infinite; }
+            `}} />
         </div>
     );
 };

@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark">
+    <title>Netdata - Zulu7 Multi-Server Edition</title>
+    <!-- Load Dygraphs from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.css" />
+    <style>
+        :root {
+            --accent-color: #344E41;
+            --bg-dark: #0d0d12;
+            --glass-bg: rgba(20, 20, 25, 0.9);
+            --border-color: rgba(255, 255, 255, 0.08);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #999;
+        }
+
+        .chart-wrapper {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        /* --- Searchable Header --- */
+        .chart-header {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 2px 0 0 0;
+            margin-bottom: 0px;
+            position: relative;
+            z-index: 100;
+        }
+
+        .prefix {
+            display: none;
+        }
+
+        .search-container {
+            position: relative;
+            flex: 1;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 6px;
+            align-items: flex-end;
+            width: 100%;
+        }
+
+        .time-select {
+            background: #08080a;
+            border: 1px solid var(--border-color);
+            color: #888;
+            font-size: 0.75rem;
+            padding: 4px 24px 4px 6px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23344E41' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+        }
+
+        .time-select:hover,
+        .time-select:focus {
+            border-color: var(--accent-color);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23344E41' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+
+        .time-select option {
+            background: #08080a !important;
+            color: #888 !important;
+            padding: 8px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            color: #888;
+            font-size: 0.85rem;
+            padding: 4px 0;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            border-bottom-color: var(--accent-color);
+        }
+
+        .search-input::placeholder {
+            color: #444;
+            font-weight: 400;
+        }
+
+        /* Input Overlay for Mixed Colors */
+        .search-overlay {
+            position: absolute;
+            top: 4px;
+            left: 0;
+            pointer-events: none;
+            font-size: 0.85rem;
+            display: flex;
+            gap: 6px;
+            z-index: 5;
+            transition: opacity 0.2s;
+        }
+
+        .input-server-label {
+            color: #f97316;
+            font-weight: 800;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        .input-server-label:hover {
+            text-decoration: underline;
+        }
+
+        .input-chart-label {
+            color: #888;
+            font-weight: 400;
+        }
+
+        .time-label {
+            display: none;
+            color: #888;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 4px 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        .search-container.typing .search-overlay,
+        .search-container.active .search-overlay {
+            opacity: 0;
+        }
+
+        .search-container.typing .search-input,
+        .search-container.active .search-input {
+            color: #888;
+        }
+
+        .search-container:not(.typing):not(.active) .search-input {
+            color: transparent;
+        }
+
+        /* --- Dropdown Results --- */
+        .results-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            max-height: 300px;
+            background: #08080a;
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.8);
+            overflow-y: auto;
+            display: none;
+            list-style: none;
+            margin-top: 8px;
+            border-radius: 6px;
+        }
+
+        .results-list.active {
+            display: block;
+        }
+
+        .result-item {
+            padding: 8px 12px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: flex-start;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .result-item:hover {
+            background: rgba(249, 115, 22, 0.15);
+        }
+
+        .result-item.selected {
+            background: rgba(0, 230, 118, 0.05);
+        }
+
+        .metric-name {
+            color: #888;
+            font-weight: 500;
+        }
+
+        .server-tag {
+            font-size: 0.65rem;
+            color: #f97316;
+            opacity: 0.9;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+
+        .result-item:hover .metric-name {
+            color: #999;
+        }
+
+        .result-item.selected .metric-name {
+            color: var(--accent-color);
+        }
+
+        /* --- Hover Legend --- */
+        .chart-values {
+            position: fixed;
+            pointer-events: none;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-width: 160px;
+            display: none;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        }
+
+        .chart-values:not(:empty) {
+            display: flex;
+        }
+
+        .chart-value-item {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #999;
+            padding: 2px 0;
+            white-space: nowrap;
+        }
+
+        /* --- Chart Area --- */
+        #chart-div {
+            flex: 1;
+            width: 100%;
+            height: 0;
+            min-height: 0;
+            cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><line x1="12" y1="0" x2="12" y2="24" stroke="rgba(255,255,255,0.8)" stroke-width="0.5" /><line x1="0" y1="12" x2="24" y2="12" stroke="rgba(255,255,255,0.8)" stroke-width="0.5" /></svg>') 12 12, crosshair;
+        }
+
+        .crosshair {
+            position: absolute;
+            pointer-events: none;
+            background: rgba(0, 230, 118, 0.15);
+            z-index: 40;
+            display: none;
+        }
+
+        #crosshair-v {
+            width: 1px;
+            top: 0;
+            bottom: 0;
+        }
+
+        #crosshair-h {
+            height: 1px;
+            left: 0;
+            right: 0;
+        }
+
+        /* Dygraph Overrides */
+        .dygraph-legend {
+            display: none !important;
+        }
+
+        .dygraph-axis-label {
+            color: #888 !important;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .dygraph-axis-label-y {
+            text-align: right !important;
+            width: 32px !important;
+        }
+
+        /* --- Background Watermark --- */
+        .chart-watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            pointer-events: none !important;
+            z-index: 100;
+            opacity: 1;
+            user-select: none;
+            text-align: center;
+            width: 100%;
+            padding: 0 2.5rem;
+            box-sizing: border-box;
+        }
+
+        .watermark-server {
+            font-size: clamp(1.2rem, 6vw, 8rem);
+            font-weight: 800;
+            color: #853d1a;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+            line-height: 1;
+        }
+
+        .watermark-chart {
+            font-size: clamp(2rem, 10vw, 15rem);
+            font-weight: 900;
+            color: #cccccc;
+            opacity: 0.2;
+            text-transform: uppercase;
+            letter-spacing: -0.05em;
+            line-height: 0.7;
+            margin-top: -0.1em;
+        }
+
+        .chart-watermark.large {
+            gap: 1rem;
+        }
+
+        .chart-watermark.large .watermark-server {
+            font-size: clamp(3rem, 12vw, 18rem);
+            color: #853d1a;
+            opacity: 0.5;
+        }
+
+        .chart-watermark.large .watermark-chart {
+            font-size: clamp(2.5rem, 10vw, 15rem);
+            color: #cccccc;
+            opacity: 0.15;
+        }
+
+        body.is-locked .chart-header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(to bottom, rgba(13, 13, 18, 0.95) 0%, rgba(13, 13, 18, 0.7) 60%, transparent 100%);
+            padding: 8px 12px 24px 12px;
+            z-index: 200;
+            display: flex !important;
+        }
+
+        body.is-locked .search-overlay {
+            display: flex !important;
+        }
+
+        body.is-locked .chart-wrapper,
+        body.is-locked #chart-div,
+        body.is-locked #chart-div canvas {
+            cursor: pointer !important;
+            pointer-events: auto !important;
+        }
+
+        body.is-locked #chart-div {
+            position: relative;
+            z-index: 10 !important;
+        }
+
+        /* --- Fullscreen / Large View Enhancements --- */
+        @media (min-width: 1200px) {
+
+            body.is-locked .input-server-label,
+            body.is-locked .input-chart-label {
+                font-size: 0.85rem;
+            }
+
+            body.is-locked .header-controls {
+                height: auto;
+                gap: 12px;
+                pointer-events: auto;
+            }
+
+            body.is-locked .time-label {
+                font-size: 1.2rem;
+                height: 48px;
+                padding: 0 24px;
+                pointer-events: auto;
+            }
+        }
+
+        .error-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            color: #888;
+            font-size: 0.8rem;
+            text-align: center;
+            z-index: 150;
+        }
+
+        /* Custom Scrollbar */
+        .results-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .results-list::-webkit-scrollbar-thumb {
+            background: var(--accent-color);
+            border-radius: 2px;
+        }
+
+        /* --- Value Mode Display --- */
+        .value-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            height: fit-content;
+            max-height: 85%;
+            z-index: 10;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            pointer-events: none;
+        }
+
+        .value-display.hybrid-bg {
+            background: transparent;
+        }
+
+        .value-table {
+            border-collapse: collapse;
+            width: auto;
+            margin: auto;
+        }
+
+        .value-table tr {
+            padding: 0.5vh 0;
+        }
+
+        .metric-value-label {
+            font-size: clamp(1rem, 6vw, 3.5rem);
+            font-weight: 800;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            opacity: 0.6;
+            text-align: left;
+            padding-right: 0.8em;
+            white-space: nowrap;
+        }
+
+        .metric-value-text {
+            font-size: clamp(1.2rem, 10vw, 6rem);
+            font-weight: 900;
+            color: #853d1a;
+            letter-spacing: -0.02em;
+            text-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            text-align: left;
+        }
+
+        /* --- Gauge Mode Display --- */
+        .gauge-container {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%;
+            height: 70%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            cursor: pointer;
+        }
+
+        .gauge-svg {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .gauge-track {
+            stroke: rgba(255, 255, 255, 0.03);
+            stroke-width: 8;
+            fill: none;
+            stroke-linecap: butt;
+            stroke-dasharray: 2, 1;
+        }
+
+        .gauge-fill {
+            stroke-width: 8;
+            fill: none;
+            stroke-linecap: butt;
+            transition: stroke-dashoffset 0.5s cubic-bezier(0.19, 1, 0.22, 1), stroke 0.5s ease;
+        }
+
+        .gauge-tick {
+            stroke: rgba(255, 255, 255, 0.15);
+            stroke-width: 1;
+        }
+
+        .gauge-value-text {
+            fill: #999;
+            font-size: 26px;
+            font-weight: 900;
+            text-anchor: middle;
+            font-family: inherit;
+            letter-spacing: -0.02em;
+            opacity: 0.6;
+        }
+
+        .gauge-label-text {
+            fill: #999;
+            font-size: 7px;
+            font-weight: 800;
+            text-anchor: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            font-family: inherit;
+            opacity: 0.6;
+        }
+
+        .gauge-server-text {
+            fill: #853d1a;
+            font-size: 5.5px;
+            font-weight: 900;
+            text-anchor: middle;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-family: inherit;
+            opacity: 0.95;
+        }
+
+        .metric-server-text {
+            color: #853d1a;
+            font-size: clamp(0.8rem, 4vw, 2rem);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            opacity: 0.8;
+            margin-top: 0.5rem;
+            text-align: left;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chart-wrapper">
+        <div class="chart-header">
+            <div class="header-controls">
+                <select id="time-window" class="time-select" title="Select Time Range">
+                    <option value="-60">1m</option>
+                    <option value="-300">5m</option>
+                    <option value="-900">15m</option>
+                    <option value="-1800">30m</option>
+                    <option value="-3600">1h</option>
+                    <option value="-86400">1d</option>
+                    <option value="-259200">3d</option>
+                    <option value="-604800">7d</option>
+                </select>
+                <select id="graph-type" class="time-select" title="Select Chart Type">
+                    <option value="area">Area</option>
+                    <option value="bar">Bar</option>
+                    <option value="gauge">Gauge</option>
+                    <option value="stacked">Stacked</option>
+                    <option value="value">Value</option>
+                </select>
+                <span id="time-label" class="time-label"></span>
+                <div id="search-container" class="search-container">
+                    <div id="search-overlay" class="search-overlay">
+                        <span id="overlay-server" class="input-server-label" title="View Server"></span>
+                        <span id="overlay-chart" class="input-chart-label"></span>
+                    </div>
+                    <input type="text" id="search-input" class="search-input"
+                        placeholder="Search servers or metrics (e.g. Lab CPU)..." autocomplete="off"
+                        title="Search Sensors and Metrics">
+                    <ul id="results-list" class="results-list"></ul>
+                </div>
+            </div>
+        </div>
+
+        <div id="chart-values" class="chart-values"></div>
+        <div id="chart-watermark" class="chart-watermark">
+            <div id="watermark-chart" class="watermark-chart"></div>
+            <div id="watermark-server" class="watermark-server"></div>
+        </div>
+        <div id="value-display" class="value-display"></div>
+        <div id="gauge-container" class="gauge-container" style="display: none;"></div>
+        <div id="chart-div"></div>
+        <div id="crosshair-v" class="crosshair"></div>
+        <div id="crosshair-h" class="crosshair"></div>
+        <div id="error-msg" class="error-overlay">Connecting to Netdata...</div>
+    </div>
+
+    <script>
+        // --- MULTI-SERVER CONFIGURATION ---
+        const NETDATA_SERVERS = [
+            { name: "Server 1", host: "http://192.168.1.100:19999" },
+            { name: "Server 2", host: "http://192.168.1.101:19999" }
+        ];
+
+        const REFRESH_MS = 60000;
+        const STORAGE_KEY = `zulu7_multi_nd_${window.name || 'default'}`;
+        const TIME_PERIODS = ["-60", "-300", "-900", "-1800", "-3600", "-86400", "-259200", "-604800"];
+
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.chart-header')) return;
+            if (document.body.classList.contains('is-locked')) {
+                window.parent.postMessage('zulu7-request-fullscreen', '*');
+            }
+        }, true);
+
+        window.addEventListener('keydown', (e) => {
+            if (/^[1-9]$/.test(e.key) || e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+                window.parent.postMessage({
+                    type: 'zulu7-keydown',
+                    key: e.key,
+                    ctrlKey: e.ctrlKey,
+                    altKey: e.altKey
+                }, '*');
+            }
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (e.target.closest('.results-list')) return;
+            window.parent.postMessage({ type: 'zulu7-wheel', deltaY: e.deltaY }, '*');
+        }, { passive: true });
+
+        // Custom Bar Plotter for Dygraphs
+        function barPlotter(e) {
+            var ctx = e.drawingContext;
+            var points = e.points;
+            var y_bottom = e.dygraph.toDomYCoord(0);
+
+            ctx.fillStyle = e.color;
+
+            var min_sep_px = Infinity;
+            for (var i = 1; i < points.length; i++) {
+                var sep = points[i].canvasx - points[i - 1].canvasx;
+                if (sep < min_sep_px) min_sep_px = sep;
+            }
+            var bar_width = Math.floor(2.0 / 3.0 * min_sep_px);
+
+            for (var i = 0; i < points.length; i++) {
+                var p = points[i];
+                var center_x = p.canvasx;
+                var bottom_y = (p.y_bottom !== undefined) ? p.y_bottom : y_bottom;
+
+                ctx.fillRect(center_x - bar_width / 2, p.canvasy,
+                    bar_width, bottom_y - p.canvasy);
+                ctx.strokeRect(center_x - bar_width / 2, p.canvasy,
+                    bar_width, bottom_y - p.canvasy);
+            }
+        }
+
+        // SVG Gauge Update Function
+        let gaugePeak = 0;
+        function updateGauge(value, min, max, label, serverName) {
+            const container = document.getElementById('gauge-container');
+            if (!container) return;
+
+            min = min || 0;
+            max = max || (value > 100 ? value * 1.2 : 100);
+            const percent = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
+
+            if (percent > gaugePeak) gaugePeak = percent;
+
+            const radius = 40;
+            const circumference = Math.PI * radius;
+            const offset = circumference - (percent / 100) * circumference;
+            const peakOffset = circumference - (gaugePeak / 100) * circumference;
+
+            let mainColor = "#2d6a4f"; 
+            if (percent >= 80) {
+                mainColor = "#7f1d1d"; 
+            } else if (percent >= 40) {
+                mainColor = "#9e7e00"; 
+            }
+
+            let ticks = "";
+            for (let i = 0; i <= 100; i += 25) {
+                const angle = 180 + (i / 100) * 180;
+                const rad = angle * Math.PI / 180;
+                const rIn = radius - 10;
+                const rOut = radius + 2;
+                const x1 = 50 + rIn * Math.cos(rad);
+                const y1 = 55 + rIn * Math.sin(rad);
+                const x2 = 50 + rOut * Math.cos(rad);
+                const y2 = 55 + rOut * Math.sin(rad);
+                ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="gauge-tick" />`;
+            }
+
+            container.innerHTML = `
+                <svg class="gauge-svg" viewBox="0 0 100 65" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                        <filter id="gaugeGlow">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur" />
+                            <feFlood flood-color="${mainColor}" flood-opacity="0.5" result="flood" />
+                            <feComposite in="flood" in2="blur" operator="in" result="glow" />
+                            <feMerge>
+                                <feMergeNode in="glow" />
+                                <feMergeNode in="SourceGraphic" />
+                            </feMerge>
+                        </filter>
+                    </defs>
+                    <path class="gauge-track" d="M 10 55 A 40 40 0 0 1 90 55" />
+                    <path d="M 10 55 A 40 40 0 0 1 90 55" 
+                          fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" 
+                          style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${peakOffset};" />
+                    <path d="M 10 55 A 40 40 0 0 1 90 55" 
+                          fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="2" 
+                          style="stroke-dasharray: 1.5, ${circumference}; stroke-dashoffset: ${peakOffset};" />
+                    <path class="gauge-fill" d="M 10 55 A 40 40 0 0 1 90 55" 
+                          stroke="${mainColor}"
+                          filter="url(#gaugeGlow)"
+                          style="stroke-dasharray: ${circumference}; stroke-dashoffset: ${offset};" />
+                    ${ticks}
+                    <text x="50" y="44" class="gauge-value-text">${value.toFixed(1)}</text>
+                    <text x="50" y="52" class="gauge-label-text">${label}</text>
+                    <text x="50" y="58" class="gauge-server-text">${serverName}</text>
+                </svg>
+            `;
+        }
+
+        let allMetrics = []; 
+        let g = null;
+        let fetchInterval = null;
+        let currentNewestTs = 0;
+        let latestData = null; 
+
+        function ndHighlight(e, x, pts, row) {
+            if (selection.graphType === 'gauge') return;
+            const canvasX = pts[0].canvasx;
+            const canvasY = pts[0].canvasy;
+            vLine.style.left = (canvasX + chartDiv.offsetLeft) + "px";
+            hLine.style.top = (canvasY + chartDiv.offsetTop) + "px";
+            vLine.style.display = "block";
+            hLine.style.display = pts.length > 1 ? 'none' : 'block';
+
+            const padding = 15;
+            let lx = e.clientX + padding;
+            let ly = e.clientY + padding;
+            const box = legendEl.getBoundingClientRect();
+            if (box.width > 0) {
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
+                if (lx + box.width > winW) lx = e.clientX - box.width - padding;
+                if (ly + box.height > winH) ly = e.clientY - box.height - padding;
+                legendEl.style.left = lx + 'px';
+                legendEl.style.top = ly + 'px';
+                legendEl.style.display = 'flex';
+            }
+        }
+
+        function ndUnhighlight(e) {
+            vLine.style.display = 'none';
+            hLine.style.display = 'none';
+            if (selection.graphType !== 'gauge') {
+                legendEl.style.display = 'none';
+            }
+        }
+
+        const chartDiv = document.getElementById("chart-div");
+        const legendEl = document.getElementById('chart-values');
+        const vLine = document.getElementById('crosshair-v');
+        const hLine = document.getElementById('crosshair-h');
+        const mainWrapper = document.querySelector('.chart-wrapper');
+        const timeEl = document.getElementById('time-window');
+        const typeEl = document.getElementById('graph-type');
+        const inputEl = document.getElementById('search-input');
+        const listEl = document.getElementById('results-list');
+        const valueDisplay = document.getElementById('value-display');
+        const gaugeContainer = document.getElementById('gauge-container');
+        const errorEl = document.getElementById('error-msg');
+        const searchContainer = document.getElementById('search-container');
+        const overlayServer = document.getElementById('overlay-server');
+
+        let selection = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+            host: NETDATA_SERVERS[0].host,
+            name: NETDATA_SERVERS[0].name,
+            chartId: "system.load",
+            after: "-60",
+            graphType: "area",
+            gaugeDimensionIndex: 0
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const isLocked = urlParams.get('locked') === 'true';
+        if (isLocked) {
+            document.body.classList.add('is-locked');
+        }
+
+        overlayServer.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (selection.host) {
+                window.open(selection.host, '_blank');
+            }
+        });
+
+        async function fetchAllMetrics() {
+            const results = await Promise.allSettled(NETDATA_SERVERS.map(async (server) => {
+                const response = await fetch(`${server.host}/api/v1/charts`);
+                if (!response.ok) throw new Error();
+                const data = await response.json();
+                return Object.keys(data.charts).map(id => ({ server, id }));
+            }));
+
+            allMetrics = results
+                .filter(r => r.status === 'fulfilled')
+                .flatMap(r => r.value)
+                .sort((a, b) => a.id.localeCompare(b.id));
+
+            renderResults(inputEl.value.includes(':') ? '' : inputEl.value);
+        }
+
+        function renderResults(query) {
+            const terms = query.toLowerCase().split(' ').filter(t => t.length > 0);
+            const filtered = allMetrics.filter(item => {
+                const searchStr = `${item.server.name} ${item.server.host} ${item.id}`.toLowerCase();
+                return terms.every(term => searchStr.includes(term));
+            });
+
+            listEl.innerHTML = filtered.map(item => `
+                <li class="result-item ${item.id === selection.chartId && item.server.host === selection.host ? 'selected' : ''}" 
+                    data-id="${item.id}" 
+                    data-host="${item.server.host}" 
+                    data-name="${item.server.name}">
+                    <span class="server-tag">${item.server.name.toUpperCase()}</span>
+                    <span class="metric-name">${item.id}</span>
+                </li>
+            `).join('');
+        }
+
+        function updateOverlay() {
+            const parts = selection.chartId.split('.');
+            const chartText = parts[parts.length - 1];
+            const watermarkChart = document.getElementById('watermark-chart');
+            const watermarkServer = document.getElementById('watermark-server');
+            if (watermarkChart) watermarkChart.textContent = chartText;
+            if (watermarkServer) watermarkServer.textContent = (selection.name || "").toUpperCase();
+            document.getElementById('overlay-server').textContent = (selection.name || "").toUpperCase();
+            document.getElementById('overlay-chart').textContent = selection.chartId;
+            const timeLabel = document.getElementById('time-label');
+            if (timeLabel && timeEl) {
+                timeLabel.textContent = timeEl.options[timeEl.selectedIndex].text;
+            }
+        }
+
+        inputEl.addEventListener('focus', () => {
+            renderResults(inputEl.value);
+            inputEl.select();
+            listEl.classList.add('active');
+            searchContainer.classList.add('active');
+        });
+
+        inputEl.addEventListener('input', (e) => {
+            renderResults(e.target.value);
+            listEl.classList.add('active');
+            if (e.target.value) {
+                searchContainer.classList.add('typing');
+            } else {
+                searchContainer.classList.remove('typing');
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-container')) {
+                listEl.classList.remove('active');
+                searchContainer.classList.remove('active', 'typing');
+                inputEl.value = `${selection.name} ${selection.chartId}`;
+                updateOverlay();
+            }
+        });
+
+        listEl.addEventListener('wheel', (e) => {
+            e.stopPropagation();
+        }, { passive: false });
+
+        listEl.addEventListener('click', (e) => {
+            const item = e.target.closest('.result-item');
+            if (item) {
+                selection.host = item.dataset.host;
+                selection.name = item.dataset.name;
+                selection.chartId = item.dataset.id;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
+                inputEl.value = `${selection.name} ${selection.chartId}`;
+                updateOverlay();
+                listEl.classList.remove('active');
+                searchContainer.classList.remove('active', 'typing');
+                if (g) { g.destroy(); g = null; }
+                if (fetchInterval) clearTimeout(fetchInterval);
+                fetchData();
+            }
+        });
+
+        inputEl.value = `${selection.name} ${selection.chartId}`;
+        timeEl.value = selection.after || "-300";
+        typeEl.value = selection.graphType || "area";
+
+        function updateUIVisibility() {
+            const watermark = document.getElementById('chart-watermark');
+            const watermarkServer = document.getElementById('watermark-server');
+            const watermarkChart = document.getElementById('watermark-chart');
+            valueDisplay.style.display = 'none';
+            gaugeContainer.style.display = 'none';
+            chartDiv.style.visibility = 'hidden';
+            chartDiv.style.opacity = '1';
+            vLine.style.display = 'none';
+            hLine.style.display = 'none';
+            watermark.style.display = 'flex';
+            watermark.classList.remove('large');
+            timeEl.style.display = 'none';
+            watermarkChart.style.display = 'block';
+            watermarkServer.style.display = 'block';
+            if (selection.graphType === 'value') {
+                valueDisplay.style.display = 'flex';
+                watermark.style.display = 'none';
+                chartDiv.style.visibility = 'visible';
+                chartDiv.style.opacity = '1';
+                timeEl.style.display = 'block';
+            } else if (selection.graphType === 'gauge') {
+                gaugeContainer.style.display = 'flex';
+                watermark.style.display = 'none';
+            } else {
+                chartDiv.style.visibility = 'visible';
+                watermarkChart.style.display = 'block';
+                timeEl.style.display = 'block';
+            }
+            if (g) { g.destroy(); g = null; }
+        }
+
+        updateUIVisibility();
+        updateOverlay();
+
+        typeEl.addEventListener('change', (e) => {
+            selection.graphType = e.target.value;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
+            updateUIVisibility();
+            if (fetchInterval) clearTimeout(fetchInterval);
+            fetchData();
+        });
+
+        timeEl.addEventListener('change', (e) => {
+            selection.after = e.target.value;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
+            updateOverlay();
+            if (g) { g.destroy(); g = null; }
+            if (fetchInterval) clearTimeout(fetchInterval);
+            fetchData();
+        });
+
+        async function fetchData() {
+            if (fetchInterval) clearTimeout(fetchInterval);
+            try {
+                const url = `${selection.host}/api/v1/data?chart=${selection.chartId}&after=${selection.after || -300}&format=json&_=${Date.now()}`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                errorEl.style.display = 'none';
+                if (!data || !data.data || data.data.length === 0) throw new Error("No data available");
+                const labels = ["Time", ...data.labels.slice(1)];
+                latestData = data;
+                const plotData = data.data.map(row => row);
+                currentNewestTs = Math.max(...plotData.map(r => r[0]));
+                const stableData = plotData.map(row => {
+                    const secFromNewest = currentNewestTs - row[0];
+                    return [-secFromNewest, ...row.slice(1)];
+                }).sort((a, b) => a[0] - b[0]);
+
+                if (selection.graphType === 'value') {
+                    const latestRow = data.data[0];
+                    const labels = data.labels.slice(1);
+                    const values = latestRow.slice(1);
+                    const tableRows = labels.map((label, idx) => {
+                        const val = values[idx];
+                        const cleanLabel = label.split('.').pop().replace(/_/g, ' ');
+                        const displayVal = typeof val === 'number' ? val.toFixed(1) : (val || 0);
+                        return `<tr><td class="metric-value-label">${cleanLabel}</td><td class="metric-value-text">${displayVal}</td></tr>`;
+                    }).join('');
+                    valueDisplay.innerHTML = `<div style="display: flex; flex-direction: column; align-items: flex-start;"><table class="value-table">${tableRows}</table><div class="metric-server-text">${selection.name}</div></div>`;
+                }
+
+                if (selection.graphType === 'gauge') {
+                    const latestRow = data.data[0];
+                    const labelsList = data.labels.slice(1);
+                    if (selection.gaugeDimensionIndex >= labelsList.length) selection.gaugeDimensionIndex = 0;
+                    const val = latestRow[selection.gaugeDimensionIndex + 1] || 0;
+                    const cleanLabel = labelsList[selection.gaugeDimensionIndex].split('.').pop().replace(/_/g, ' ');
+                    let max = 100;
+                    if (selection.chartId.includes('cpu')) max = 100;
+                    else if (selection.chartId.includes('load')) max = Math.max(10, val * 1.5);
+                    else if (selection.chartId.includes('mem')) max = 100;
+                    updateGauge(val, 0, max, cleanLabel, selection.name);
+                    if (g) { g.destroy(); g = null; }
+                    return;
+                }
+
+                const maxOffset = Math.abs(stableData[0][0]);
+                if (!g) {
+                    g = new Dygraph(document.getElementById("chart-div"), stableData, {
+                        labels: labels,
+                        strokeWidth: selection.graphType === 'bar' ? 1 : 1.2,
+                        colors: ["rgba(52, 78, 65, 0.7)", "rgba(74, 98, 116, 0.7)", "rgba(97, 111, 57, 0.7)", "rgba(82, 109, 130, 0.7)", "rgba(99, 92, 81, 0.7)", "rgba(125, 116, 97, 0.7)", "rgba(166, 75, 42, 0.7)", "rgba(142, 77, 64, 0.7)", "rgba(69, 75, 84, 0.7)", "rgba(62, 67, 46, 0.7)"],
+                        fillGraph: true,
+                        stackedGraph: selection.graphType === 'stacked' || selection.graphType === 'bar',
+                        plotter: selection.graphType === 'bar' ? barPlotter : null,
+                        fillAlpha: (selection.graphType === 'stacked' || selection.graphType === 'bar') ? 0.35 : 0.08,
+                        drawXAxis: true,
+                        drawYAxis: true,
+                        gridLineColor: 'rgba(255,255,255,0.05)',
+                        axisLineColor: 'transparent',
+                        strokeBorderWidth: 0,
+                        highlightCircleSize: 6,
+                        drawHighlightPointCallback: function (g, name, ctx, cx, cy, color, radius) {
+                            ctx.beginPath(); ctx.fillStyle = "rgba(249, 115, 22, 0.5)"; ctx.arc(cx, cy, radius, 0, 2 * Math.PI, false); ctx.fill();
+                        },
+                        highlightCallback: ndHighlight,
+                        unhighlightCallback: ndUnhighlight,
+                        labelsDiv: legendEl,
+                        legend: 'always',
+                        dateWindow: [-maxOffset, 0],
+                        xAxisHeight: 20,
+                        yAxisLabelWidth: 32,
+                        rightGap: 0,
+                        axes: {
+                            x: {
+                                axisLabelFormatter: function (v) {
+                                    const absV = Math.abs(v);
+                                    if (absV === 0) return 'Now';
+                                    if (absV < 60) return absV + 's';
+                                    if (absV < 3600) return Math.round(absV / 60) + 'm';
+                                    if (absV < 86400) return Math.round(absV / 3600) + 'h';
+                                    return Math.round(absV / 86400) + 'd';
+                                },
+                                valueFormatter: function (v) {
+                                    const absV = Math.abs(v);
+                                    if (absV === 0) return 'Now';
+                                    if (absV < 60) return absV + 's ago';
+                                    if (absV < 3600) return Math.round(absV / 60) + 'm ago';
+                                    if (absV < 86400) return Math.round(absV / 3600) + 'h ago';
+                                    return Math.round(absV / 86400) + 'd ago';
+                                }
+                            },
+                            y: { drawAxis: true, axisLabelWidth: 32, drawLabels: true, axisLabelFormatter: function (v) { return v.toFixed(1); } }
+                        },
+                        legendFormatter: function (data) {
+                            if (data.x === undefined) return '';
+                            const targetTs = (currentNewestTs + data.x) * 1000;
+                            const timeStr = new Date(targetTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                            const values = data.series.map(s => {
+                                if (s.y === undefined) return '';
+                                const name = s.labelHTML.split('.').pop().replace(/_/g, ' ');
+                                return `<div class="chart-value-item" style="color: ${s.color}">${name}: ${s.yHTML}</div>`;
+                            }).join('');
+                            return `<div style="color: #f97316; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 2px;">${selection.name}</div><div class="chart-value-item" style="color: #888; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 4px; padding-bottom: 4px; font-size: 0.9rem;">${timeStr}</div>${values}`;
+                        },
+                        highlightCircleSize: 6
+                    });
+                } else {
+                    g.updateOptions({ 'file': stableData, 'labels': labels, 'dateWindow': [-maxOffset, 0], 'stackedGraph': selection.graphType === 'stacked' || selection.graphType === 'bar' });
+                }
+            } catch (err) {
+                console.error('Netdata API Error:', err);
+                errorEl.style.display = 'flex';
+                errorEl.innerHTML = `${selection.name}: ${err.message}`;
+            } finally {
+                const currentInterval = selection.graphType === 'gauge' ? 15000 : REFRESH_MS;
+                fetchInterval = setTimeout(fetchData, currentInterval);
+            }
+        }
+
+        fetchAllMetrics();
+        fetchData();
+
+        window.addEventListener('resize', () => { if (g) g.resize(); });
+
+        mainWrapper.addEventListener('mousemove', (e) => {
+            if (selection.graphType !== 'gauge') return;
+            if (latestData && latestData.data && latestData.data[0]) {
+                const row = latestData.data[0];
+                const metrics = latestData.labels.slice(1).map((lbl, i) => {
+                    const name = lbl.split('.').pop().replace(/_/g, ' ');
+                    const val = typeof row[i + 1] === 'number' ? row[i + 1].toFixed(1) : (row[i + 1] || '0');
+                    return `<div class="chart-value-item">${name}: ${val}</div>`;
+                }).join('');
+                legendEl.innerHTML = `<div style="color: #f97316; font-weight: 800; font-size: 0.75rem; text-transform: uppercase; margin-bottom: 2px;">${selection.name}</div>${metrics}`;
+                legendEl.style.display = 'flex';
+                const padding = 15;
+                let lx = e.clientX + padding;
+                let ly = e.clientY + padding;
+                const box = legendEl.getBoundingClientRect();
+                if (box.width > 0) {
+                    const winW = window.innerWidth;
+                    const winH = window.innerHeight;
+                    if (lx + box.width > winW) lx = e.clientX - box.width - padding;
+                    if (ly + box.height > winH) ly = e.clientY - box.height - padding;
+                    legendEl.style.left = lx + 'px';
+                    legendEl.style.top = ly + 'px';
+                }
+            }
+        });
+
+        mainWrapper.addEventListener('mouseleave', () => { if (selection.graphType === 'gauge') legendEl.style.display = 'none'; });
+
+        mainWrapper.addEventListener('wheel', (e) => {
+            if (e.target.closest('.results-list')) return;
+            e.preventDefault();
+            if (selection.graphType === 'gauge' && latestData && latestData.labels) {
+                const labelsList = latestData.labels.slice(1);
+                if (labelsList.length > 1) {
+                    if (e.deltaY > 0) selection.gaugeDimensionIndex = (selection.gaugeDimensionIndex + 1) % labelsList.length;
+                    else selection.gaugeDimensionIndex = (selection.gaugeDimensionIndex - 1 + labelsList.length) % labelsList.length;
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
+                    fetchData();
+                    return;
+                }
+            }
+            const currentIndex = TIME_PERIODS.indexOf(selection.after || "-300");
+            let nextIndex = currentIndex;
+            if (e.deltaY > 0) nextIndex = Math.min(TIME_PERIODS.length - 1, currentIndex + 1);
+            else nextIndex = Math.max(0, currentIndex - 1);
+            if (nextIndex !== currentIndex) {
+                selection.after = TIME_PERIODS[nextIndex];
+                timeEl.value = selection.after;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(selection));
+                if (g) { g.destroy(); g = null; }
+                if (fetchInterval) clearTimeout(fetchInterval);
+                fetchData();
+            }
+        }, { passive: false });
+
+        const resizeObserver = new ResizeObserver(() => { if (g) g.resize(); });
+        resizeObserver.observe(document.getElementById('chart-div'));
+
+        window.addEventListener('message', (event) => {
+            if (!event.data) return;
+            if (event.data.type === 'zulu7-fullscreen-state') {
+                if (event.data.isActive) document.body.classList.add('is-fullscreen');
+                else document.body.classList.remove('is-fullscreen');
+                if (g) g.resize();
+            }
+            if (event.data.type === 'zulu7-lock-state') {
+                if (event.data.isLocked) document.body.classList.add('is-locked');
+                else document.body.classList.remove('is-locked');
+                if (g) g.resize();
+            }
+        });
+    </script>
+</body>
+
+</html>

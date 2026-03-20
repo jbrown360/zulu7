@@ -171,11 +171,17 @@ const RSSWidget = ({ data, isLocked }) => {
     }, [urls.join(',')]);
 
     useEffect(() => {
-        fetchFeed();
-        // Refresh every 15 minutes
-        const interval = setInterval(fetchFeed, 15 * 60 * 1000);
+        if (isVisible && document.visibilityState === 'visible') {
+            fetchFeed();
+        }
+        // Refresh every 15 minutes, but only if visible
+        const interval = setInterval(() => {
+            if (isVisible && document.visibilityState === 'visible') {
+                fetchFeed();
+            }
+        }, 15 * 60 * 1000);
         return () => clearInterval(interval);
-    }, [fetchFeed]);
+    }, [fetchFeed, isVisible]);
 
     // IntersectionObserver to detect if widget is visible (for hibernation)
     useEffect(() => {
@@ -298,8 +304,8 @@ const RSSWidget = ({ data, isLocked }) => {
             {!isLocked && (
                 <div className="flex items-center justify-between p-3 bg-white/5 border-b border-white/5 z-10 shrink-0">
                     <div className="flex items-center space-x-2 overflow-hidden">
-                        <Rss size={16} className="text-orange-500 shrink-0" />
-                        <span className="text-xs font-bold text-white truncate" title={displayName || feedTitle}>
+                        <Rss size={16} className="text-zulu-orange shrink-0" />
+                        <span className="text-xs font-bold truncate" title={displayName || feedTitle} style={{ color: '#999' }}>
                             {displayName || feedTitle}
                         </span>
                     </div>
@@ -311,7 +317,7 @@ const RSSWidget = ({ data, isLocked }) => {
                 <div className="absolute top-1.5 right-3.5 z-50 flex items-center space-x-2">
                     <button
                         onClick={fetchFeed}
-                        className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-white/70 hover:text-orange-500 transition-colors cursor-pointer no-focus"
+                        className="w-7 h-7 flex items-center justify-center bg-white/[0.01] rounded-none border border-white/5 text-[#999]/70 hover:text-zulu-orange transition-colors cursor-pointer no-focus"
                         title="Refresh Widget"
                     >
                         <RefreshCw size={14} />
@@ -355,7 +361,7 @@ const RSSWidget = ({ data, isLocked }) => {
                                 >
                                     {item.source && (
                                         <div className="flex items-center space-x-2 mb-2">
-                                            <span className="text-[10px] font-bold text-orange-500 uppercase tracking-widest">{item.source}</span>
+                                            <span className="text-[10px] font-bold text-zulu-orange uppercase tracking-widest">{item.source}</span>
                                         </div>
                                     )}
                                     {item.image && (
@@ -373,9 +379,9 @@ const RSSWidget = ({ data, isLocked }) => {
                                         </div>
                                     )}
                                     <h4 className={`
-                                        font-medium text-white/90 group-hover/item:text-blue-400 leading-tight transition-colors
+                                        font-medium group-hover/item:text-blue-400 leading-tight transition-colors
                                         ${(isFullscreen || data.isMaximized) ? 'text-2xl mb-3 font-bold' : 'text-3xl mb-2'}
-                                    `}>
+                                    `} style={{ color: '#999' }}>
                                         {item.title}
                                     </h4>
                                     {item.pubDate && (

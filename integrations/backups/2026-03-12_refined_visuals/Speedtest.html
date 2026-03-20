@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="color-scheme" content="dark">
+    <title>Speedtest - Zulu7</title>
+    <!-- Load Dygraphs from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/dygraph/2.2.1/dygraph.min.css" />
+    <style>
+        :root {
+            --bg-dark: #0d0d12;
+            --zulu-orange: #853d1a;
+            --zulu-green: #2d6a4f;
+            --zulu-blue: #3b82f6;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --glass-bg: rgba(20, 20, 25, 0.4);
+            --wm-bg: rgba(10, 10, 15, 0.15);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            width: 100%;
+            height: 100%;
+            background: transparent !important;
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, system-ui, sans-serif;
+            color: #999;
+        }
+
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            background: var(--bg-dark);
+        }
+
+        .header {
+            padding: 12px 16px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .title-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .title {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--zulu-orange);
+        }
+
+        .time-select {
+            background: #08080a;
+            border: 1px solid var(--border-color);
+            color: #888;
+            font-size: 10px;
+            padding: 4px 24px 4px 8px;
+            border-radius: 4px;
+            outline: none;
+            cursor: pointer;
+            font-weight: 600;
+            text-transform: uppercase;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23344E41' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            transition: all 0.2s;
+        }
+
+        .time-select:hover,
+        .time-select:focus {
+            border-color: #344E41;
+            color: #999;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23344E41' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        }
+
+        .time-select option {
+            background: #08080a !important;
+            color: #888 !important;
+        }
+
+        /* High Visibility Watermark - Table Version */
+        .watermark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: auto;
+            /* Allow metrics to sit together */
+            z-index: 0;
+            pointer-events: none;
+            user-select: none;
+            border-collapse: collapse;
+            color: rgba(255, 255, 255, 0.08);
+            /* Grey Netdata Style */
+        }
+
+        .watermark td {
+            font-size: clamp(2rem, 12vw, 15rem);
+            font-weight: 900;
+            line-height: 1.1;
+            /* Increased for breathing room */
+            text-transform: uppercase;
+            letter-spacing: -0.02em;
+            /* Less condensed to prevent touching */
+            white-space: nowrap;
+            padding: 0.5vh 0;
+            /* Vertical spacing */
+            text-align: left;
+            color: #999;
+        }
+
+        .wm-label {
+            font-weight: 500;
+            letter-spacing: 0.15em;
+            opacity: 0.6;
+            font-size: clamp(1.5rem, 5vw, 6.5rem) !important;
+            padding-right: 1.5vw !important;
+            /* Tightened Gap */
+            text-align: right !important;
+        }
+
+        .wm-unit {
+            font-size: clamp(1.5rem, 5vw, 6.5rem) !important;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: #999 !important;
+            opacity: 0.6;
+            /* Matched label opacity */
+            padding-left: 1vw !important;
+            /* Tightened Gap */
+        }
+
+        #wm-dn,
+        #wm-up,
+        #wm-ping {
+            color: var(--zulu-orange) !important;
+        }
+
+        #chart-div {
+            flex: 1;
+            width: 100%;
+            height: 0;
+            min-height: 0;
+        }
+
+        /* Dygraph Legend Customization */
+        .dygraph-legend {
+            left: 60px !important;
+            top: 60px !important;
+            background: rgba(13, 13, 18, 0.8) !important;
+            border: 1px solid var(--border-color) !important;
+            padding: 8px 12px !important;
+            border-radius: 4px !important;
+            color: #999 !important;
+            font-size: 10px !important;
+            font-weight: 600 !important;
+            backdrop-filter: blur(4px);
+            pointer-events: none;
+        }
+
+        /* Hide legend initially */
+        .dygraph-legend:empty {
+            display: none !important;
+        }
+
+        .dygraph-axis-label {
+            color: #999 !important;
+            font-size: 9px !important;
+            font-weight: 700;
+        }
+
+        /* --- Hover Values / Tooltip --- */
+        .chart-values {
+            position: fixed;
+            pointer-events: none;
+            z-index: 200;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 14px 18px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: none;
+            flex-direction: column;
+            gap: 2px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            min-width: 175px;
+        }
+
+        .tooltip-heading {
+            color: var(--zulu-orange);
+            font-weight: 800;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 2px;
+        }
+
+        .tooltip-time {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #888;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+        }
+
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .tooltip-label {
+            font-size: 0.9rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #888;
+        }
+
+        .tooltip-value {
+            font-size: 1.15rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* --- Crosshairs --- */
+        .crosshair {
+            position: absolute;
+            background: rgba(0, 230, 118, 0.15);
+            pointer-events: none;
+            z-index: 40;
+            display: none;
+        }
+
+        #crosshair-v {
+            width: 1px;
+            top: 0;
+            bottom: 0;
+        }
+
+        #crosshair-h {
+            height: 1px;
+            left: 0;
+            right: 0;
+        }
+
+        /* --- Fullscreen / Locked States --- */
+        body.is-locked .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: transparent !important;
+            border-bottom: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            padding: 12px 16px;
+            z-index: 200;
+            display: flex !important;
+            pointer-events: none;
+            /* Let clicks through the header padding if any */
+        }
+
+        body.is-locked .header>* {
+            pointer-events: auto;
+            /* Buttons/Dropdowns still work */
+        }
+
+        body.is-locked .container,
+        body.is-locked #chart-div,
+        body.is-locked #chart-div canvas {
+            cursor: pointer !important;
+            pointer-events: auto !important;
+        }
+
+        body.is-locked #chart-div {
+            position: relative;
+            z-index: 10 !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container" id="main-container">
+        <!-- Crosshair lines -->
+        <div id="crosshair-v" class="crosshair"></div>
+        <div id="crosshair-h" class="crosshair"></div>
+
+        <div class="header">
+            <div class="title-group">
+                <select id="interval-select" class="time-select" title="Polling & Display Interval">
+                    <option value="300000">5m</option>
+                    <option value="900000">15m</option>
+                    <option value="1800000" selected>30m</option>
+                    <option value="3600000">1h</option>
+                    <option value="21600000">6h</option>
+                    <option value="43200000">12h</option>
+                    <option value="86400000">1d</option>
+                    <option value="259200000">3d</option>
+                    <option value="604800000">7d</option>
+                </select>
+                <div class="title">Speedtest</div>
+            </div>
+        </div>
+
+        <div id="chart-div"></div>
+        <div id="chart-values" class="chart-values"></div>
+
+        <table class="watermark">
+            <tr>
+                <td class="wm-label">DOWNLOAD</td>
+                <td id="wm-dn">--</td>
+                <td class="wm-unit">MBPS</td>
+            </tr>
+            <tr>
+                <td class="wm-label">UPLOAD</td>
+                <td id="wm-up">--</td>
+                <td class="wm-unit">MBPS</td>
+            </tr>
+            <tr>
+                <td class="wm-label">LATENCY</td>
+                <td id="wm-ping">--</td>
+                <td class="wm-unit">MS</td>
+            </tr>
+        </table>
+    </div>
+
+    <script>
+        let g = null;
+        const STORAGE_KEY = 'zulu7_speedtest_interval';
+        let refreshTimer = null;
+        let currentInterval = parseInt(localStorage.getItem(STORAGE_KEY)) || 1800000; // 30m default
+        const intervals = [300000, 900000, 1800000, 3600000, 21600000, 43200000, 86400000, 259200000, 604800000];
+
+        const chartDiv = document.getElementById("chart-div");
+        const legendEl = document.getElementById('chart-values');
+        const vLine = document.getElementById('crosshair-v');
+        const hLine = document.getElementById('crosshair-h');
+        const container = document.getElementById('main-container');
+        const intervalSelect = document.getElementById('interval-select');
+
+        async function refresh() {
+            try {
+                const res = await fetch('/api/speedtest?_=' + Date.now());
+                const history = await res.json();
+
+                if (!history || history.length === 0) {
+                    if (!g) {
+                        chartDiv.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#444;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">No Data Points Yet... Running Test...</div>';
+                    }
+                    return;
+                }
+
+                // Update Watermark Stats
+                const latest = history[history.length - 1];
+                document.getElementById('wm-dn').textContent = Math.round(latest.download);
+                document.getElementById('wm-up').textContent = Math.round(latest.upload);
+                document.getElementById('wm-ping').textContent = Math.round(latest.ping);
+
+                // Map for Dygraphs: [Date, Download, Upload, Ping]
+                const data = history.map(p => [new Date(p.timestamp), p.download, p.upload, p.ping]);
+
+                // Calculate dynamic window based on currentInterval
+                const now = Date.now();
+                const windowStart = now - currentInterval;
+
+                if (!g) {
+                    g = new Dygraph(chartDiv, data, {
+                        labels: ["Time", "Download", "Upload", "Latency"],
+                        colors: ["rgba(52, 78, 65, 0.7)", "rgba(74, 98, 116, 0.7)", "rgba(97, 111, 57, 0.7)"],
+                        strokeWidth: 1.2,
+                        fillGraph: true,
+                        fillAlpha: 0.05,
+                        gridLineColor: 'rgba(255,255,255,0.01)',
+                        axisLineColor: 'transparent',
+                        legend: 'always',
+                        labelsDiv: legendEl,
+                        hideOverlayOnMouseOut: false,
+                        drawXAxis: true,
+                        drawGrid: true,
+                        dateWindow: [windowStart, now],
+                        highlightCallback: function (e, x, pts, row) {
+                            if (!g || !pts || pts.length === 0) return;
+
+                            const domX = g.toDomXCoord(x);
+                            if (vLine) {
+                                vLine.style.left = (domX + chartDiv.offsetLeft) + 'px';
+                                vLine.style.display = 'block';
+                            }
+
+                            // Find the first series that has a value to position horizontal line
+                            const p = pts.find(p => p.yval !== null);
+                            if (p && hLine) {
+                                const domY = g.toDomYCoord(p.yval);
+                                hLine.style.top = (domY + chartDiv.offsetTop) + 'px';
+                                // Hide horizontal line if more than one metric is displayed
+                                hLine.style.display = pts.length > 1 ? 'none' : 'block';
+                            }
+
+                            if (legendEl) legendEl.style.display = 'flex';
+                        },
+                        unhighlightCallback: function (e) {
+                            if (vLine) vLine.style.display = 'none';
+                            if (hLine) hLine.style.display = 'none';
+                            if (legendEl) legendEl.style.display = 'none';
+                        },
+                        drawHighlightPointCallback: function (g, name, ctx, cx, cy, color, radius) {
+                            ctx.beginPath();
+                            ctx.fillStyle = "rgba(249, 115, 22, 0.5)";
+                            ctx.arc(cx, cy, radius, 0, 2 * Math.PI, false);
+                            ctx.fill();
+                        },
+                        legendFormatter: function (data) {
+                            if (data.x === undefined) return '';
+                            const timeStr = new Date(data.x).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+                            let html = `
+                                <div class="tooltip-heading">SPEEDTEST</div>
+                                <div class="tooltip-time" style="color: #888; font-size: 0.8rem; margin-bottom: 4px;">${timeStr}</div>
+                            `;
+                            data.series.forEach(s => {
+                                const val = s.y !== null ? s.y.toFixed(2) : '--';
+                                const unit = s.label === 'Latency' ? 'ms' : 'Mbps';
+                                const color = s.color || '#fff';
+                                html += `
+                                    <div class="tooltip-row" style="margin-bottom: 2px; color: ${color}">
+                                        <span class="tooltip-label" style="font-weight: 400;">${s.label}</span>
+                                        <span class="tooltip-value" style="font-weight: 800; margin-left: auto; padding-left: 15px;">
+                                            ${val} <small style="font-size: 10px; opacity: 0.8; font-weight: 400; margin-left: 2px;">${unit}</small>
+                                        </span>
+                                    </div>
+                                `;
+                            });
+                            return html;
+                        },
+                        axes: {
+                            x: {
+                                drawAxis: true,
+                                drawGrid: false,
+                                axisLabelFontSize: 9,
+                                pixelsPerLabel: 60
+                            },
+                            y: {
+                                drawAxis: true,
+                                axisLabelWidth: 40,
+                                valueRange: [0, null],
+                                pixelsPerLabel: 40
+                            }
+                        },
+                        highlightCircleSize: 6,
+                        strokeBorderWidth: 1,
+                        strokeBorderColor: 'rgba(0,0,0,0.5)'
+                    });
+                } else {
+                    g.updateOptions({
+                        file: data,
+                        dateWindow: [windowStart, now]
+                    });
+                }
+            } catch (err) {
+                console.error("Speedtest Refresh Error:", err);
+            }
+        }
+
+        // Mouse Tracking for Tooltip Positioning
+        container.addEventListener('mousemove', (e) => {
+            if (!g || !legendEl || legendEl.style.display === 'none') return;
+
+            const padding = 20;
+            let lx = e.clientX + padding;
+            let ly = e.clientY + padding;
+
+            const box = legendEl.getBoundingClientRect();
+            const winW = window.innerWidth;
+            const winH = window.innerHeight;
+
+            if (lx + box.width > winW) lx = e.clientX - box.width - padding;
+            if (ly + box.height > winH) ly = e.clientY - box.height - padding;
+
+            legendEl.style.left = lx + 'px';
+            legendEl.style.top = ly + 'px';
+        });
+
+        async function changeInterval(ms) {
+            currentInterval = ms;
+            intervalSelect.value = ms;
+            localStorage.setItem(STORAGE_KEY, ms);
+
+            // Harmonized Poll: Backend polls every 5m for all views to ensure consistency
+            const pollMs = 300000;
+
+            // Sync with Backend
+            try {
+                await fetch(`/api/speedtest/setInterval?ms=${pollMs}`);
+            } catch (e) {
+                console.error("Failed to sync interval to backend:", e);
+            }
+
+            // Sync Frontend Refresh (Max refresh should also be reasonable, e.g. 5m)
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(refresh, pollMs);
+
+            // Immediate Refresh to update dateWindow
+            refresh();
+        }
+
+        // Mouse Wheel Cycle
+        container.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            let idx = intervals.indexOf(currentInterval);
+            if (e.deltaY > 0) {
+                // Scroll down -> Longer interval
+                idx = (idx + 1) % intervals.length;
+            } else {
+                // Scroll up -> Shorter interval
+                idx = (idx - 1 + intervals.length) % intervals.length;
+            }
+            changeInterval(intervals[idx]);
+        }, { passive: false });
+
+        // Dropdown Change
+        intervalSelect.addEventListener('change', (e) => {
+            changeInterval(parseInt(e.target.value));
+        });
+
+        // Initial Load
+        intervalSelect.value = currentInterval;
+
+        function startTimer() {
+            if (refreshTimer) clearInterval(refreshTimer);
+            refreshTimer = setInterval(() => {
+                if (document.visibilityState === 'visible') refresh();
+            }, 300000); // Standard 5m poll
+        }
+
+        // Hibernation & Catch-up logic
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                console.log("[Speedtest] Visible: Catching up...");
+                refresh();
+                startTimer();
+            } else {
+                console.log("[Speedtest] Hidden: Hibernating...");
+                if (refreshTimer) clearInterval(refreshTimer);
+            }
+        });
+
+        // Initial launch
+        if (document.visibilityState === 'visible') {
+            refresh();
+            startTimer();
+        }
+
+        // Handle resizing
+        const resizeObserver = new ResizeObserver(() => {
+            if (g) g.resize();
+        });
+        resizeObserver.observe(chartDiv);
+
+        // --- Initial State Check (Important for Parent Sync) ---
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('locked') === 'true') {
+            document.body.classList.add('is-locked');
+        }
+
+        // --- Fullscreen & Interaction Logic ---
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.header')) return;
+            if (document.body.classList.contains('is-locked')) {
+                console.log("[Speedtest] Locked click detected, requesting fullscreen...");
+                window.parent.postMessage('zulu7-request-fullscreen', '*');
+            }
+        }, true);
+
+        window.addEventListener('message', (event) => {
+            if (!event.data) return;
+
+            if (event.data.type === 'zulu7-fullscreen-state') {
+                if (event.data.isActive) {
+                    document.body.classList.add('is-fullscreen');
+                } else {
+                    document.body.classList.remove('is-fullscreen');
+                }
+                if (g) g.resize();
+            }
+
+            if (event.data.type === 'zulu7-lock-state') {
+                if (event.data.isLocked) {
+                    document.body.classList.add('is-locked');
+                } else {
+                    document.body.classList.remove('is-locked');
+                }
+                if (g) g.resize();
+            }
+        });
+    </script>
+</body>
+
+</html>

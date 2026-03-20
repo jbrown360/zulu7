@@ -10,6 +10,26 @@
 - **Real-Time Market Intelligence**: Live tracking for cryptos, stocks, and commodities without rate limits.
 - **Privacy First**: 100% local operation with JSON-based snapshots and no cloud tracking.
 - **Local System Insights**: Built-in monitoring for CPU load and system health in home lab environments.
+- **Advanced Security & Lockdown**: Real-time integration protection via hidden `.locked` file failsafe.
+
+## Security & Lockdown
+
+Zulu7 includes a definitive "Kill-Switch" security mechanism for integrations:
+
+- **Hidden Failsafe**: Create a hidden file named `.locked` in the `integrations/` directory to trigger a global lockdown.
+- **Real-Time Protection**: The system polls for the lock status every 5 seconds. If detected, the Integration Editor immediately scrambles all visible code characters into `*`.
+- **Content Masking**: The backend automatically obfuscates integration source code before it even leaves the server when locked.
+- **UI Interaction Block**: A prominent **"INTEGRATION LOCKED"** overlay prevents all interaction and inspection of sensitive code.
+- **Backend Enforcement**: Any attempts to save changes while the system is locked are rejected by the server with a `403 Forbidden` error.
+- **Restore Defaults**: Integration editors include a "Restore Defaults" safety mechanism to reset configurations to a known good state.
+
+## Integration Development
+
+When creating or modifying integrations in the `integrations/` directory:
+
+- **Safety Backups**: Always create a `.default` file for new integrations and **update** it during upgrades (e.g., `netdata.default` for `netdata.html`). This enables the "Restore Defaults" feature.
+- **Clean Templates**: Default files should contain complete, working source code but with all sensitive information (IPs, API keys, server names) removed or neutralized.
+- **Lockdown Support**: Integrations should ideally check for the `.locked` status and provide appropriate visual feedback if they handle their own internal navigation or state.
 
 ## Quick Start
 

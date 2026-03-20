@@ -1,0 +1,32 @@
+{
+    "type": "network-scanner",
+    "icon": "Wifi",
+    "name": "Network Scanner",
+    "description": "Scans a local network segment for known and unknown devices.",
+    "configurable_params": [
+        {
+            "name": "segment",
+            "type": "string",
+            "label": "Network Segment (CIDR Range)",
+            "default": "192.168.1.0/24",
+            "required": true
+        },
+        {
+            "name": "interval",
+            "type": "number",
+            "label": "Scan Interval (Minutes)",
+            "default": 10,
+            "required": true
+        }
+    ],
+    "default_config": {
+        "w": 6,
+        "h": 8,
+        "minW": 4,
+        "minH": 4,
+        "api_params": {
+            "segment": "192.168.1.0/24",
+            "interval": 10
+        }
+    }
+}
