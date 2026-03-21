@@ -388,7 +388,7 @@ class SpeedtestManager {
 
         for (const ep of endpoints) {
             try {
-                const cmd = `curl -A "Mozilla/5.0" -k -L -m 20 -s -w "%{http_code}:%{time_total}:%{size_download}" -o /dev/null "${ep.url}${ep.url.includes('?') ? '&' : '?'}nocache=${Math.random()}"`;
+                const cmd = `curl -A "Mozilla/5.0" -k -L -m 20 -s -w "%{http_code}:%{speed_download}" -o /dev/null "${ep.url}${ep.url.includes('?') ? '&' : '?'}nocache=${Math.random()}"`;
                 const result = await new Promise((resolve, reject) => {
                     exec(cmd, (err, stdout) => {
                         // Tolerate curl timeouts (28) or partials (18), allowing calculation of bytes fetched before cutoff
@@ -397,15 +397,13 @@ class SpeedtestManager {
                     });
                 });
 
-                const [code, time, size] = result.split(':');
+                const [code, speedStr] = result.split(':');
                 if (code !== '200' && code !== '206' && code !== '000') throw new Error(`HTTP ${code}`);
                 
-                const durationSec = parseFloat(time);
-                const bytesDownloaded = parseInt(size, 10);
-                
-                if (durationSec < 0.1 || isNaN(durationSec) || !bytesDownloaded) throw new Error("Suspicious execution measurements");
+                const bytesPerSec = parseFloat(speedStr);
+                if (isNaN(bytesPerSec) || bytesPerSec <= 0) throw new Error("Suspicious execution measurements");
 
-                const mbps = (bytesDownloaded * 8) / durationSec / 1000000;
+                const mbps = (bytesPerSec * 8) / 1000000;
                 return parseFloat(mbps.toFixed(2));
             } catch (e) {
                 console.warn(`[Speedtest] Download failed on ${ep.url} - ${e.message}`);
@@ -425,7 +423,7 @@ class SpeedtestManager {
                 exec(`dd if=/dev/urandom of=${tempFile} bs=1M count=2 2>/dev/null`, () => resolve());
             });
 
-            const cmd = `curl -X POST -H "Expect:" -A "Mozilla/5.0" -k -m 20 -s -w "%{http_code}:%{time_total}:%{size_upload}" -o /dev/null --data-binary "@${tempFile}" "https://speed.cloudflare.com/__up" 2>/dev/null`;
+            const cmd = `curl -X POST -H "Expect:" -A "Mozilla/5.0" -k -m 20 -s -w "%{http_code}:%{speed_upload}" -o /dev/null --data-binary "@${tempFile}" "https://speed.cloudflare.com/__up" 2>/dev/null`;
             const result = await new Promise((resolve, reject) => {
                 exec(cmd, (err, stdout) => {
                     if (err && err.code !== 0 && err.code !== 28 && err.code !== 18) return reject(err);
@@ -433,15 +431,13 @@ class SpeedtestManager {
                 });
             });
 
-            const [code, time, size] = result.split(':');
+            const [code, speedStr] = result.split(':');
             if (code !== '200' && code !== '000') throw new Error(`HTTP ${code}`);
             
-            const durationSec = parseFloat(time);
-            const bytesUploaded = parseInt(size, 10) || (2 * 1024 * 1024);
-            
-            if (durationSec < 0.1 || isNaN(durationSec)) throw new Error("Suspicious execution time");
+            const bytesPerSec = parseFloat(speedStr);
+            if (isNaN(bytesPerSec) || bytesPerSec <= 0) throw new Error("Suspicious execution time");
 
-            const mbps = (bytesUploaded * 8) / durationSec / 1000000;
+            const mbps = (bytesPerSec * 8) / 1000000;
             return parseFloat(mbps.toFixed(2));
         } catch (e) {
             console.warn(`[Speedtest] Upload failed - ${e.message}`);
