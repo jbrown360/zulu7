@@ -345,121 +345,47 @@ class SpeedtestManager {
     async runTest() {
         if (this.isTesting) return;
         this.isTesting = true;
-        console.log("[Speedtest] Running scheduled measurement...");
 
         try {
-            const ping = await this.measurePing();
-            const download = await this.measureDownload();
-            const upload = await this.measureUpload();
+            console.log("[Speedtest] Running Fast-CLI measurement (Netflix API)...");
+            const resultStr = await new Promise((resolve, reject) => {
+                exec('npx -y fast-cli@3 --upload --json', { timeout: 60000 }, (err, stdout) => {
+                    if (err && !stdout) return reject(err);
+                    resolve(stdout);
+                });
+            });
 
-            const result = {
-                timestamp: Date.now(),
-                download,
-                upload,
-                ping
-            };
+            const parsed = JSON.parse(resultStr);
+            const download = parsed.downloadSpeed || 0;
+            const upload = parsed.uploadSpeed || 0;
+            const ping = parsed.latency || 0;
 
-            this.saveResult(result);
             console.log(`[Speedtest] Success: Dn=${download}Mbps, Up=${upload}Mbps, Ping=${ping}ms`);
+
+            let history = [];
+            try {
+                if (existsSync(this.historyFile)) {
+                    history = JSON.parse(readFileSync(this.historyFile, 'utf-8'));
+                }
+            } catch (e) {}
+
+            history.push({ timestamp: Date.now(), download, upload, ping });
+            const CUTOFF = Date.now() - (24 * 60 * 60 * 1000);
+            history = history.filter(p => p.timestamp > CUTOFF);
+            
+            try {
+                writeFileSync(this.historyFile, JSON.stringify(history));
+            } catch (e) {
+                console.error("[Speedtest] Save Error:", e);
+            }
         } catch (err) {
-            console.error("[Speedtest] Measurement failed:", err);
+            console.error("[Speedtest] Measurement failed:", err.message);
         } finally {
             this.isTesting = false;
         }
     }
 
-    async measurePing() {
-        return new Promise((resolve) => {
-            exec('ping -c 4 8.8.8.8', (err, stdout) => {
-                if (err) return resolve(0);
-                const avgMatch = stdout.match(/(?:rtt|round-trip)\s+min\/avg\/max(?:\/mdev)?\s*=\s*[\d.]+\/([\d.]+)\//);
-                resolve(avgMatch ? parseFloat(avgMatch[1]) : 0);
-            });
-        });
-    }
 
-    async measureDownload() {
-        const endpoints = [
-            { url: 'http://speedtest.newark.linode.com/100MB-newark.bin', bytes: 104857600 },
-            { url: 'http://speedtest.atlanta.linode.com/100MB-atlanta.bin', bytes: 104857600 },
-            { url: 'https://speed.cloudflare.com/__down?bytes=26214400', bytes: 26214400 },
-            { url: 'http://speedtest.tele2.net/10MB.zip', bytes: 10485760 }
-        ];
-
-        for (const ep of endpoints) {
-            try {
-                const cmd = `curl -A "Mozilla/5.0" -k -L -m 20 -s -w "%{http_code}:%{speed_download}" -o /dev/null "${ep.url}${ep.url.includes('?') ? '&' : '?'}nocache=${Math.random()}"`;
-                const result = await new Promise((resolve, reject) => {
-                    exec(cmd, (err, stdout) => {
-                        // Tolerate curl timeouts (28) or partials (18), allowing calculation of bytes fetched before cutoff
-                        if (err && err.code !== 0 && err.code !== 28 && err.code !== 18) return reject(err);
-                        resolve(stdout.trim());
-                    });
-                });
-
-                const [code, speedStr] = result.split(':');
-                if (code !== '200' && code !== '206' && code !== '000') throw new Error(`HTTP ${code}`);
-                
-                const bytesPerSec = parseFloat(speedStr);
-                if (isNaN(bytesPerSec) || bytesPerSec <= 0) throw new Error("Suspicious execution measurements");
-
-                const mbps = (bytesPerSec * 8) / 1000000;
-                return parseFloat(mbps.toFixed(2));
-            } catch (e) {
-                console.warn(`[Speedtest] Download failed on ${ep.url} - ${e.message}`);
-            }
-        }
-        
-        console.error("[Speedtest] All download endpoints failed");
-        return 0;
-    }
-
-    async measureUpload() {
-        try {
-            const tempFile = '/tmp/speedtest_upload.bin';
-            
-            // Generate a 2MB temporary payload stream bypassing the ESM CommonJS requirement constraints
-            await new Promise((resolve) => {
-                exec(`dd if=/dev/urandom of=${tempFile} bs=1M count=2 2>/dev/null`, () => resolve());
-            });
-
-            const cmd = `curl -X POST -H "Expect:" -A "Mozilla/5.0" -k -m 20 -s -w "%{http_code}:%{speed_upload}" -o /dev/null --data-binary "@${tempFile}" "https://speed.cloudflare.com/__up" 2>/dev/null`;
-            const result = await new Promise((resolve, reject) => {
-                exec(cmd, (err, stdout) => {
-                    if (err && err.code !== 0 && err.code !== 28 && err.code !== 18) return reject(err);
-                    resolve(stdout.trim());
-                });
-            });
-
-            const [code, speedStr] = result.split(':');
-            if (code !== '200' && code !== '000') throw new Error(`HTTP ${code}`);
-            
-            const bytesPerSec = parseFloat(speedStr);
-            if (isNaN(bytesPerSec) || bytesPerSec <= 0) throw new Error("Suspicious execution time");
-
-            const mbps = (bytesPerSec * 8) / 1000000;
-            return parseFloat(mbps.toFixed(2));
-        } catch (e) {
-            console.warn(`[Speedtest] Upload failed - ${e.message}`);
-            return 0;
-        }
-    }
-
-    saveResult(point) {
-        let history = [];
-        try {
-            if (existsSync(this.historyFile)) {
-                history = JSON.parse(readFileSync(this.historyFile, 'utf-8'));
-            }
-        } catch (e) { }
-
-        history.push(point);
-
-        const CUTOFF = Date.now() - (7 * 24 * 60 * 60 * 1000);
-        history = history.filter(p => p.timestamp > CUTOFF);
-
-        writeFileSync(this.historyFile, JSON.stringify(history));
-    }
 
     getHistory() {
         try {
