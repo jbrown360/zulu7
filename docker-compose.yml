@@ -13,6 +13,7 @@ services:
     volumes:
       - ./published_configs:/app/published_configs
       - ./integrations:/app/integrations
+      - ./speedtest_history:/app/speedtest_history
 
   streamer:
     image: alexxit/go2rtc
