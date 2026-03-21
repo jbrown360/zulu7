@@ -335,7 +335,7 @@ if (!existsSync(SPEEDTEST_HISTORY_DIR)) mkdirSync(SPEEDTEST_HISTORY_DIR);
 class SpeedtestManager {
     constructor() {
         this.historyFile = path.join(SPEEDTEST_HISTORY_DIR, 'results.json');
-        this.pollInterval = 60 * 60 * 1000; // 60 mins
+        this.pollInterval = 5 * 60 * 1000; // 5 mins default
         this.pollTimer = setInterval(() => this.runTest(), this.pollInterval);
         this.isTesting = false;
         // Delayed startup test
@@ -1387,6 +1387,15 @@ app.delete('/api/clipboard/:key/:filename', async (req, res) => {
 
 app.get('/api/speedtest', (req, res) => {
     res.json(speedtestManager.getHistory());
+});
+
+app.get('/api/speedtest/setInterval', (req, res) => {
+    const ms = parseInt(req.query.ms);
+    if (!isNaN(ms) && ms >= 60000) {
+        speedtestManager.updateInterval(ms);
+        return res.json({ success: true, interval: speedtestManager.pollInterval });
+    }
+    res.json({ interval: speedtestManager.pollInterval });
 });
 
 // API: Network Scanner
