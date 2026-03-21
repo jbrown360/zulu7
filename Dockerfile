@@ -15,7 +15,7 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install production dependencies and network tools
-RUN apk add --no-cache nmap
+RUN apk add --no-cache nmap curl
 COPY package*.json ./
 RUN npm ci --omit=dev
 
