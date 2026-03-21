@@ -382,6 +382,16 @@
                 document.getElementById('wm-up').textContent = Math.round(latest.upload);
                 document.getElementById('wm-ping').textContent = Math.round(latest.ping);
 
+                // Handle singular deployment plot dropouts - coercing Dygraphs to natively trace interpolation
+                if (history.length === 1) {
+                    history.unshift({
+                        timestamp: history[0].timestamp - 300000,
+                        download: 0,
+                        upload: 0,
+                        ping: 0
+                    });
+                }
+
                 // Map for Dygraphs: [Date, Download, Upload, Ping]
                 const data = history.map(p => [new Date(p.timestamp), p.download, p.upload, p.ping]);
 
