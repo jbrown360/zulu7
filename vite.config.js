@@ -371,9 +371,10 @@ class SpeedtestManager {
 
   async measureDownload() {
     const endpoints = [
+      { url: 'http://speedtest.newark.linode.com/100MB-newark.bin', bytes: 104857600 },
+      { url: 'http://speedtest.atlanta.linode.com/100MB-atlanta.bin', bytes: 104857600 },
       { url: 'https://speed.cloudflare.com/__down?bytes=26214400', bytes: 26214400 },
-      { url: 'http://speedtest.tele2.net/10MB.zip', bytes: 10485760 },
-      { url: 'https://speed.hetzner.de/100MB.bin', bytes: 104857600 }
+      { url: 'http://speedtest.tele2.net/10MB.zip', bytes: 10485760 }
     ];
 
     for (const ep of endpoints) {
