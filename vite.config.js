@@ -12,7 +12,6 @@ import os from 'node:os'
 import snmp from 'net-snmp'
 import arp from 'node-arp'
 import multer from 'multer'
-import speedTest from 'speedtest-net'
 
 // --- Clipboard Storage configuration ---
 const CLIPBOARD_DIR = path.resolve('data', 'clipboards');
@@ -339,12 +338,18 @@ class SpeedtestManager {
     this.isTesting = true;
 
     try {
-      console.log("[Vite Speedtest] Running Ookla SDK measurement...");
-      const result = await speedTest({ acceptLicense: true, acceptGdpr: true });
+      console.log("[Vite Speedtest] Running Python Speedtest-CLI measurement...");
+      const resultStr = await new Promise((resolve, reject) => {
+        exec('python3 utils/speedtest.py --json', { timeout: 90000 }, (err, stdout) => {
+          if (err && !stdout) return reject(err);
+          resolve(stdout);
+        });
+      });
 
-      const download = (result.download.bandwidth * 8 / 1000000) || 0;
-      const upload = (result.upload.bandwidth * 8 / 1000000) || 0;
-      const ping = result.ping.latency || 0;
+      const parsed = JSON.parse(resultStr);
+      const download = (parsed.download / 1000000) || 0;
+      const upload = (parsed.upload / 1000000) || 0;
+      const ping = parsed.ping || 0;
 
       console.log(`[Vite Speedtest] Success: Dn=${download.toFixed(2)}Mbps, Up=${upload.toFixed(2)}Mbps, Ping=${ping.toFixed(2)}ms`);
 

@@ -15,13 +15,14 @@ FROM node:20-alpine
 WORKDIR /app
 
 # Install production dependencies and network tools
-RUN apk add --no-cache nmap curl
+RUN apk add --no-cache nmap curl python3
 COPY package*.json ./
 RUN npm ci --omit=dev
 
 # Copy built assets and server
 COPY --from=build /app/dist ./dist
 COPY server.js ./
+COPY utils ./utils
 COPY integrations ./integrations
 
 # Create directory for published configs validation
