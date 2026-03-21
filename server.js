@@ -372,7 +372,7 @@ class SpeedtestManager {
         return new Promise((resolve) => {
             exec('ping -c 4 8.8.8.8', (err, stdout) => {
                 if (err) return resolve(0);
-                const avgMatch = stdout.match(/rtt min\/avg\/max\/mdev = [\d.]+\/([\d.]+)\//);
+                const avgMatch = stdout.match(/(?:rtt|round-trip)\s+min\/avg\/max(?:\/mdev)?\s*=\s*[\d.]+\/([\d.]+)\//);
                 resolve(avgMatch ? parseFloat(avgMatch[1]) : 0);
             });
         });
