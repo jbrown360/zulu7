@@ -378,21 +378,24 @@ class SpeedtestManager {
 
     for (const ep of endpoints) {
       try {
-        const cmd = `curl -A "Mozilla/5.0" -k -L -m 20 -s -w "%{http_code}:%{time_total}" -o /dev/null "${ep.url}${ep.url.includes('?') ? '&' : '?'}nocache=${Math.random()}"`;
+        const cmd = `curl -A "Mozilla/5.0" -k -L -m 20 -s -w "%{http_code}:%{time_total}:%{size_download}" -o /dev/null "${ep.url}${ep.url.includes('?') ? '&' : '?'}nocache=${Math.random()}"`;
         const result = await new Promise((resolve, reject) => {
           exec(cmd, (err, stdout) => {
-            if (err && err.code !== 0) return reject(err);
+            // Tolerate curl timeouts (28) or partials (18), allowing calculation of bytes fetched before cutoff
+            if (err && err.code !== 0 && err.code !== 28 && err.code !== 18) return reject(err);
             resolve(stdout.trim());
           });
         });
 
-        const [code, time] = result.split(':');
-        if (code !== '200') throw new Error(`HTTP ${code}`);
+        const [code, time, size] = result.split(':');
+        if (code !== '200' && code !== '206' && code !== '000') throw new Error(`HTTP ${code}`);
         
         const durationSec = parseFloat(time);
-        if (durationSec < 0.1 || isNaN(durationSec)) throw new Error("Suspicious execution time");
+        const bytesDownloaded = parseInt(size, 10);
+        
+        if (durationSec < 0.1 || isNaN(durationSec) || !bytesDownloaded) throw new Error("Suspicious execution measurements");
 
-        const mbps = (ep.bytes * 8) / durationSec / 1000000;
+        const mbps = (bytesDownloaded * 8) / durationSec / 1000000;
         return parseFloat(mbps.toFixed(2));
       } catch (e) {
         console.warn(`[Vite Speedtest] Download failed on ${ep.url} - ${e.message}`);
@@ -406,36 +409,35 @@ class SpeedtestManager {
   async measureUpload() {
         try {
             const tempFile = '/tmp/speedtest_upload.bin';
-            const { execSync } = require('child_process');
             
-            // Create a 5MB random payload file quickly using dd if it doesn't exist
-            try {
-                if (!require('fs').existsSync(tempFile)) {
-                    execSync(`dd if=/dev/urandom of=${tempFile} bs=1M count=2 2>/dev/null`);
-                }
-            } catch (e) { }
+            // Generate a 2MB temporary payload stream bypassing the ESM CommonJS requirement constraints
+            await new Promise((resolve) => {
+                exec(`dd if=/dev/urandom of=${tempFile} bs=1M count=2 2>/dev/null`, () => resolve());
+            });
 
-            const cmd = `curl -X POST -H "Expect:" -A "Mozilla/5.0" -k -m 20 -s -w "%{http_code}:%{time_total}" -o /dev/null --data-binary "@${tempFile}" "https://speed.cloudflare.com/__up" 2>/dev/null`;
+            const cmd = `curl -X POST -H "Expect:" -A "Mozilla/5.0" -k -m 20 -s -w "%{http_code}:%{time_total}:%{size_upload}" -o /dev/null --data-binary "@${tempFile}" "https://speed.cloudflare.com/__up" 2>/dev/null`;
             const result = await new Promise((resolve, reject) => {
                 exec(cmd, (err, stdout) => {
-                    if (err && err.code !== 0) return reject(err);
+                    if (err && err.code !== 0 && err.code !== 28 && err.code !== 18) return reject(err);
                     resolve(stdout.trim());
                 });
             });
 
-            const [code, time] = result.split(':');
-            if (code !== '200') throw new Error(`HTTP ${code}`);
+            const [code, time, size] = result.split(':');
+            if (code !== '200' && code !== '000') throw new Error(`HTTP ${code}`);
             
             const durationSec = parseFloat(time);
+            const bytesUploaded = parseInt(size, 10) || (2 * 1024 * 1024);
+            
             if (durationSec < 0.1 || isNaN(durationSec)) throw new Error("Suspicious execution time");
 
-            const mbps = (2 * 8) / durationSec;
+            const mbps = (bytesUploaded * 8) / durationSec / 1000000;
             return parseFloat(mbps.toFixed(2));
         } catch (e) {
             console.warn(`[Vite Speedtest] Upload failed - ${e.message}`);
             return 0;
         }
-  }
+    }
 
   saveResult(point) {
     let history = [];
