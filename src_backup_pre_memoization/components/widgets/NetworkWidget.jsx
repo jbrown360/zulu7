@@ -799,4 +799,4 @@ const NetworkWidget = ({ widget, isEditMode }) => {
     );
 };
 
-export default React.memo(NetworkWidget);
+export default NetworkWidget;

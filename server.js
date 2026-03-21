@@ -379,37 +379,71 @@ class SpeedtestManager {
     }
 
     async measureDownload() {
-        try {
-            const startTime = Date.now();
-            // Using a 25MB test file from Cloudflare
-            const res = await fetch('https://speed.cloudflare.com/__down?bytes=26214400');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            await res.arrayBuffer();
-            const durationSec = (Date.now() - startTime) / 1000;
-            // bits = bytes * 8 (25MB = 25 * 8 = 200 Megabits)
-            const mbps = (25 * 8) / durationSec;
-            return parseFloat(mbps.toFixed(2));
-        } catch (e) {
-            console.error("[Speedtest] Dn Error:", e);
-            return 0;
+        const endpoints = [
+            { url: 'https://speed.cloudflare.com/__down?bytes=26214400', bytes: 26214400 },
+            { url: 'http://speedtest.tele2.net/10MB.zip', bytes: 10485760 },
+            { url: 'https://speed.hetzner.de/100MB.bin', bytes: 104857600 }
+        ];
+
+        for (const ep of endpoints) {
+            try {
+                const cmd = `curl -A "Mozilla/5.0" -k -L -m 20 -s -w "%{http_code}:%{time_total}" -o /dev/null "${ep.url}${ep.url.includes('?') ? '&' : '?'}nocache=${Math.random()}"`;
+                const result = await new Promise((resolve, reject) => {
+                    exec(cmd, (err, stdout) => {
+                        if (err && err.code !== 0) return reject(err);
+                        resolve(stdout.trim());
+                    });
+                });
+
+                const [code, time] = result.split(':');
+                if (code !== '200') throw new Error(`HTTP ${code}`);
+                
+                const durationSec = parseFloat(time);
+                if (durationSec < 0.1 || isNaN(durationSec)) throw new Error("Suspicious execution time");
+
+                const mbps = (ep.bytes * 8) / durationSec / 1000000;
+                return parseFloat(mbps.toFixed(2));
+            } catch (e) {
+                console.warn(`[Speedtest] Download failed on ${ep.url} - ${e.message}`);
+            }
         }
+        
+        console.error("[Speedtest] All download endpoints failed");
+        return 0;
     }
 
     async measureUpload() {
         try {
-            const data = crypto.randomBytes(5242880); // 5MB
-            const startTime = Date.now();
-            const res = await fetch('https://speed.cloudflare.com/__up', {
-                method: 'POST',
-                body: data
+            const tempFile = '/tmp/speedtest_upload.bin';
+            const { execSync } = require('child_process');
+            
+            // Create a 5MB random payload file quickly using dd if it doesn't exist
+            try {
+                if (!require('fs').existsSync(tempFile)) {
+                    execSync(`dd if=/dev/urandom of=${tempFile} bs=1M count=2 2>/dev/null`);
+                }
+            } catch (e) {
+                // Fallback to minimal payload or ignore
+            }
+
+            const cmd = `curl -X POST -H "Expect:" -A "Mozilla/5.0" -k -m 20 -s -w "%{http_code}:%{time_total}" -o /dev/null --data-binary "@${tempFile}" "https://speed.cloudflare.com/__up" 2>/dev/null`;
+            const result = await new Promise((resolve, reject) => {
+                exec(cmd, (err, stdout) => {
+                    if (err && err.code !== 0) return reject(err);
+                    resolve(stdout.trim());
+                });
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const durationSec = (Date.now() - startTime) / 1000;
-            // 5MB = 40 Megabits
-            const mbps = (5 * 8) / durationSec;
+
+            const [code, time] = result.split(':');
+            if (code !== '200') throw new Error(`HTTP ${code}`);
+            
+            const durationSec = parseFloat(time);
+            if (durationSec < 0.1 || isNaN(durationSec)) throw new Error("Suspicious execution time");
+
+            const mbps = (2 * 8) / durationSec; // 2MB = 16 Megabits
             return parseFloat(mbps.toFixed(2));
         } catch (e) {
-            console.error("[Speedtest] Up Error:", e);
+            console.warn(`[Speedtest] Upload failed - ${e.message}`);
             return 0;
         }
     }
@@ -845,9 +879,66 @@ class NetworkScannerManager {
     }
 }
 
+class SystemLoadManager {
+    constructor() {
+        this.historyFile = path.join(path.resolve('published_configs'), 'load_history.json');
+        this.pollInterval = 60 * 1000; // 1 min
+
+        if (global.__viteLoadTimer) clearInterval(global.__viteLoadTimer);
+
+        if (!process.argv.includes('build')) {
+            this.pollTimer = setInterval(() => this.runTest(), this.pollInterval);
+            global.__viteLoadTimer = this.pollTimer;
+            setTimeout(() => this.runTest(), 5000);
+        }
+    }
+
+    runTest() {
+        try {
+            const loadAvg = os.loadavg();
+            const point = {
+                timestamp: Date.now(),
+                load1: parseFloat(loadAvg[0].toFixed(2)),
+                load5: parseFloat(loadAvg[1].toFixed(2)),
+                load15: parseFloat(loadAvg[2].toFixed(2))
+            };
+            this.saveResult(point);
+        } catch (e) { console.error("[SystemLoadManager] Error:", e); }
+    }
+
+    saveResult(point) {
+        let history = [];
+        try {
+            if (existsSync(this.historyFile)) {
+                history = JSON.parse(readFileSync(this.historyFile, 'utf-8'));
+            }
+        } catch (e) {}
+
+        history.push(point);
+        const CUTOFF = Date.now() - (24 * 60 * 60 * 1000); // 24 hours
+        history = history.filter(p => p.timestamp > CUTOFF);
+        
+        try {
+            writeFileSync(this.historyFile, JSON.stringify(history));
+        } catch (e) {
+            console.error("[SystemLoadManager] Save Error:", e);
+        }
+    }
+
+    getHistory() {
+        try {
+            if (existsSync(this.historyFile)) {
+                return JSON.parse(readFileSync(this.historyFile, 'utf-8'));
+            }
+        } catch (e) {}
+        return [];
+    }
+}
+
 const snmpManager = new SnmpManager();
 const dockerManager = new DockerManager();
 const speedtestManager = new SpeedtestManager();
+const systemLoadManager = new SystemLoadManager();
 const networkManager = new NetworkScannerManager();
 
 
@@ -1869,6 +1960,11 @@ app.get('/api/health-check', async (req, res) => {
     } catch (e) {
         res.json({ status: 'down', error: e.message });
     }
+});
+
+// API: System Load History
+app.get('/api/load-history', (req, res) => {
+    res.json(systemLoadManager.getHistory());
 });
 
 // API: System Load (Local Only)

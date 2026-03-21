@@ -306,4 +306,4 @@ const WeatherWidget = ({ data, isLocked }) => {
     );
 };
 
-export default React.memo(WeatherWidget);
+export default WeatherWidget;

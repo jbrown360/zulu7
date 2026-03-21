@@ -110,8 +110,34 @@ const VideoWidget = ({ data, isLocked, isActive = true }) => {
         return () => observer.disconnect();
     }, []);
 
-    // Note: Camera stream failures no longer trigger the aggressive grid vibration (shake) effect. 
-    // The native siren-pulse CSS glow is retained for visual alerting.
+    // Dedicated Vibration Interval for Stuck Streams (Randomized Stagger)
+    const jitter = useMemo(() => Math.random() * 3000, [data.id]);
+
+    useEffect(() => {
+        if (!isStuck || data.type !== 'camera') {
+            setIsVibrating(false);
+            return;
+        }
+
+        let interval;
+        const startVibration = () => {
+            const vibrateBurst = () => {
+                if (isVisible && document.visibilityState === 'visible') {
+                    setIsVibrating(true);
+                    setTimeout(() => setIsVibrating(false), 1000);
+                }
+            };
+
+            vibrateBurst();
+            interval = setInterval(vibrateBurst, 3000);
+        };
+
+        const timeout = setTimeout(startVibration, jitter);
+        return () => {
+            clearTimeout(timeout);
+            if (interval) clearInterval(interval);
+        };
+    }, [isStuck, isVisible, data.type, jitter]);
 
     // Dispatch custom event for grid-level alerts (Shake)
     useEffect(() => {

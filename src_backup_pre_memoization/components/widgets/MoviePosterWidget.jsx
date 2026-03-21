@@ -190,4 +190,4 @@ const MoviePosterWidget = ({ widget, isLocked, tmdbKey }) => {
     );
 };
 
-export default React.memo(MoviePosterWidget);
+export default MoviePosterWidget;

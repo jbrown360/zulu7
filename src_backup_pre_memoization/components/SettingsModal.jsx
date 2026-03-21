@@ -131,15 +131,12 @@ const SettingsModal = ({ isOpen, onClose, onSave, initialSettings, activeTab, se
 
     // Fetch Load History
     useEffect(() => {
-        if (!showLoadGraph) return;
+        if (!showLoadGraph || !isLocal) return;
 
         const fetchHistory = async () => {
             try {
-                const res = await fetch(`/api/load-history?t=${Date.now()}`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.length > 0) setLoadHistory(data);
-                }
+                const res = await fetch('/api/load-history');
+                if (res.ok) setLoadHistory(await res.json());
             } catch (e) { console.error("History fetch failed:", e); }
         };
 

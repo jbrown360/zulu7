@@ -43,9 +43,19 @@
             margin: 2px 0;
         }
 
+        @keyframes marquee-scroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .marquee-container:hover .marquee-content {
+            animation-play-state: paused;
+        }
+
         .marquee-content {
             display: inline-block;
             will-change: transform;
+            animation: marquee-scroll 120s linear infinite;
         }
 
         #container2 {
@@ -172,41 +182,13 @@
             setTimeout(() => { contentWidth = element.offsetWidth / 2; }, 100);
         }
 
-        function animate() {
-            if (!isHovered && isVisible && document.visibilityState === 'visible' && contentWidth > 0) {
-                scrollPos1 += speed1; if (scrollPos1 >= contentWidth) scrollPos1 = 0;
-                scrollPos2 += speed2; if (scrollPos2 >= contentWidth) scrollPos2 = 0;
-                marquee1.style.transform = `translateX(${-scrollPos1}px)`;
-                marquee2.style.transform = `translateX(${-scrollPos2}px)`;
-            }
-            requestAnimationFrame(animate);
-        }
+        // Note: Render looping is now explicitly offloaded to pure CSS hardware acceleration
 
-        const pauseOn = () => isHovered = true;
-        const pauseOff = () => isHovered = false;
-        [container1, container2].forEach(c => {
-            c.addEventListener('mouseenter', pauseOn);
-            c.addEventListener('mouseleave', pauseOff);
-            c.addEventListener('wheel', (e) => {
-                if (contentWidth === 0) return;
-                e.preventDefault();
-                scrollPos1 += e.deltaY; scrollPos2 += e.deltaY;
-                [scrollPos1, scrollPos2].forEach((pos, idx) => {
-                    let p = pos;
-                    if (p < 0) p = contentWidth + (p % contentWidth);
-                    else if (p >= contentWidth) p = p % contentWidth;
-                    if (idx === 0) scrollPos1 = p; else scrollPos2 = p;
-                });
-                marquee1.style.transform = `translateX(${-scrollPos1}px)`;
-                marquee2.style.transform = `translateX(${-scrollPos2}px)`;
-            }, { passive: false });
-        });
 
         const observer = new IntersectionObserver(([entry]) => { isVisible = entry.isIntersecting; }, { threshold: 0.1 });
         observer.observe(container1);
         fetchRSS();
         setInterval(fetchRSS, REFRESH_INTERVAL);
-        requestAnimationFrame(animate);
     </script>
 </body>
 

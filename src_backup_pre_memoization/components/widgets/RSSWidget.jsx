@@ -193,8 +193,75 @@ const RSSWidget = ({ data, isLocked }) => {
         return () => observer.disconnect();
     }, []);
 
-    // Note: Auto-scroll is now handled entirely by CSS keyframes and GPU hardware acceleration.
     const [isHovered, setIsHovered] = useState(false);
+
+    // Auto-scroll logic with GPU acceleration (transform)
+    useEffect(() => {
+        if (isFullscreen || !items.length) return;
+
+        const content = contentRef.current;
+        if (!content) return;
+
+        let requestRef;
+        const pixelsPerSecond = 30;
+
+        const scroll = (timestamp) => {
+            if (!lastTimestampRef.current) lastTimestampRef.current = timestamp;
+            const delta = timestamp - lastTimestampRef.current;
+            lastTimestampRef.current = timestamp;
+
+            // Pause if user is manual-scrolling or hovering or widget is not visible or tab is backgrounded
+            if (!isUserScrolling && !isHovered && isVisible && document.visibilityState === 'visible') {
+                const increment = (pixelsPerSecond * delta) / 1000;
+                preciseScrollYRef.current += increment;
+
+                // Seamless loop: if we passed the first half, jump back
+                // items are doubled, so we check content height / 2
+                const halfHeight = content.scrollHeight / 2;
+                if (preciseScrollYRef.current >= halfHeight) {
+                    preciseScrollYRef.current -= halfHeight;
+                }
+
+                // Apply GPU-accelerated transform
+                content.style.transform = `translateY(${-preciseScrollYRef.current}px)`;
+            }
+
+            requestRef = requestAnimationFrame(scroll);
+        };
+
+        requestRef = requestAnimationFrame(scroll);
+        return () => {
+            if (requestRef) cancelAnimationFrame(requestRef);
+            lastTimestampRef.current = 0;
+        };
+    }, [isFullscreen, items.length, isUserScrolling, isHovered, isVisible]);
+
+    const handleWheel = (e) => {
+        if (isFullscreen) return;
+
+        // Update current scroll coordinate based on wheel movement
+        preciseScrollYRef.current += e.deltaY;
+
+        // Loop protection for manual scroll
+        const content = contentRef.current;
+        if (content) {
+            const halfHeight = content.scrollHeight / 2;
+            if (preciseScrollYRef.current >= halfHeight) preciseScrollYRef.current -= halfHeight;
+            if (preciseScrollYRef.current < 0) preciseScrollYRef.current += halfHeight;
+
+            content.style.transform = `translateY(${-preciseScrollYRef.current}px)`;
+        }
+
+        triggerManualScrollPause();
+    };
+
+    const triggerManualScrollPause = () => {
+        setIsUserScrolling(true);
+        if (userScrollTimeoutRef.current) clearTimeout(userScrollTimeoutRef.current);
+        userScrollTimeoutRef.current = setTimeout(() => {
+            setIsUserScrolling(false);
+        }, 5000); // 5 second pause for manual interaction
+    };
 
     // Format date nicely
     const formatDate = (dateString) => {
@@ -263,6 +330,8 @@ const RSSWidget = ({ data, isLocked }) => {
                 ref={scrollRef}
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
+                onWheel={handleWheel}
+                onTouchStart={triggerManualScrollPause}
                 className={`flex-1 relative bg-[#1a1a20] overflow-hidden`}
             >
                 {/*
@@ -270,11 +339,8 @@ const RSSWidget = ({ data, isLocked }) => {
                 */}
                 <div
                     ref={contentRef}
-                    className={`w-full will-change-transform ${(!isFullscreen && !data.isMaximized) ? 'animate-scroll-vertical' : ''} ${isHovered ? 'pause-animation' : ''}`}
-                    style={{ 
-                        willChange: 'transform', 
-                        animationDuration: `${Math.max(20, items.length * 3.5)}s` 
-                    }}
+                    className="w-full will-change-transform"
+                    style={{ willChange: 'transform' }}
                 >
                     <div className={`${(isFullscreen || data.isMaximized) ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4' : ''}`}>
                         {((isFullscreen || data.isMaximized) ? items : [...items, ...items]).map((item, index) => (
@@ -344,4 +410,4 @@ const RSSWidget = ({ data, isLocked }) => {
     );
 };
 
-export default React.memo(RSSWidget);
+export default RSSWidget;

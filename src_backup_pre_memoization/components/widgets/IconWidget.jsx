@@ -64,4 +64,4 @@ const IconWidget = ({ data }) => {
     );
 };
 
-export default React.memo(IconWidget);
+export default IconWidget;

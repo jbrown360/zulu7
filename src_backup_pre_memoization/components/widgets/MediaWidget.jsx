@@ -337,4 +337,4 @@ const MediaWidget = ({ widget, isLocked }) => {
 };
 
 
-export default React.memo(MediaWidget);
+export default MediaWidget;

@@ -194,4 +194,4 @@ const ServiceWidget = ({ widget, isLocked }) => {
     );
 };
 
-export default React.memo(ServiceWidget);
+export default ServiceWidget;
